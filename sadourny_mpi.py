@@ -174,6 +174,59 @@ def flux_sw_enst(uvh, params):
     return flux, energy, enstrophy
 
 
+def set_mpi_bdr(uvh, rank, p, mx, col, tags):
+    # send uvh[:, 1] (second column) ...
+    if 0 < rank:
+        # ...from rank to rank-1 (left)
+        comm.Send(uvh[:, 1].flatten(), dest=rank-1, tag=tags[rank])
+    else:
+        # ...from 0 to p-1
+        comm.Send(uvh[:, 1].flatten(), dest=p-1,    tag=tags[rank])
+
+    # receive uvh[:, 1], place in uvh[:, mx+1] (last column) ...
+    if rank < p-1:
+        # ... from rank+1
+        comm.Recv(col, source=rank+1, tag=tags[rank+1])
+        uvh[:, mx+1] = col
+    else:
+        # ... from rank 0
+        comm.Recv(col, source=0,      tag=tags[0])
+
+
+    # send uvh[:, mx] (second-last column)...
+    if rank < p-1:
+        # ...from rank to rank+1
+        comm.Send(uvh[:, mx-2].flatten(), dest=rank+1, tag=tags[rank])
+    else:
+        # ...from p-1 to 0
+        comm.Send(uvh[:, mx-2].flatten(), dest=0,      tag=tags[rank])
+
+    # receive uvh[:, mx], place in uvh[:, 0] (first column) ...
+    if 0 < rank:
+        # ...from rank-1
+        comm.Recv(col, source=rank-1, tag=tags[rank-1])
+        uvh[:, 0] = col
+    else:
+        # ...from p-1
+        comm.Recv(col, source=p-1,    tag=tags[p-1])
+        uvh[:, 0] = col
+
+    return uvh
+
+
+def gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, ii):
+    comm.Gather(uvh[:, 1:mx+1].flatten(), uvhG, root=0)
+    if rank == 0:
+        # evenly split ug into a list of p parts
+        temp = np.array_split(uvhG, p)
+        # reshape each part
+        temp = [a.reshape(3*My, mx) for a in temp]
+        UVHG[:, :, ii] = np.hstack(temp)
+        return UVHG
+    else:
+        return None
+
+
 def main():
     # mpi stuff
     rank = comm.Get_rank()   # this process' ID
@@ -181,7 +234,7 @@ def main():
     tags = dict([(j, j+5) for j in xrange(p)])
 
     # Number of grid points
-    sc  = 1
+    sc = 1
     Mx, My  = 128*sc, 128*sc
     mx = Mx / p  # x grid points per process
 
@@ -192,19 +245,28 @@ def main():
     # x conditions
     dx = Lx/Mx
     x0, xf = -Lx/2, Lx/2
-    x  = np.linspace(x0 + rank*Lx/p, x0 + (rank+1)*Lx/p-dx, mx)
-    xs = np.linspace(x0 + rank*Lx/p+dx/2, x0 + (rank+1)*Lx/p-dx/2, mx)
 
-    # for i in xrange(p):
-    #     if rank == i:
-    #         print rank
-    #     comm.Barrier()
+    # handling ghost points
+    x_all  = np.linspace(x0, xf-dx, Mx)            # all (non-staggered) x points
+    xs_all = np.linspace(x0 +dx/2, xf-dx/2, Mx)    # all (staggered) x points
+    if rank == 0:
+        x  = np.hstack([ [x_all[-1]],  x_all[:mx+1] ])
+        xs = np.hstack([ [xs_all[-1]], xs_all[:mx+1]])
+
+    elif rank == p-1:
+        x  = np.hstack([ x_all[rank*mx - 1:],  [x_all[0]]  ])
+        xs = np.hstack([ xs_all[rank*mx - 1:], [xs_all[0]] ])
+
+    else:
+        x  = x_all [rank*mx - 1 : (rank+1)*mx + 1]
+        xs = xs_all[rank*mx - 1 : (rank+1)*mx + 1]
 
     # y conditions
     dy = Ly/My
     y0, yf = -Ly/2, Ly/2
     y  = np.linspace(y0, yf-dy, My)
     ys = np.linspace(y0+dy/2, yf-dy/2, My)
+
 
     # Physical parameters
     f0, beta, gp, H0  = 1.e-4, 0e-11, 9.81, 500.
@@ -243,78 +305,52 @@ def main():
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
 
-    col = np.empty(3*My, dtype='d')
 
     # GLOBAL STUFF
     if rank == 0:
-        xG,  yG  = np.linspace(x0, xf-dx, Mx), y
-        xsG, ysG = np.linspace(x0+dx/2, xf-dx/2, Mx), ys
+        xG,  yG  = x_all, y
+        xsG, ysG = xs_all, ys
         xqG, yqG = np.meshgrid(xsG, ysG)
         xhG, yhG = np.meshgrid(xG,  yG)
         xuG, yuG = np.meshgrid(xsG, yG)
         xvG, yvG = np.meshgrid(xG,  ysG)
 
-        uvhg = np.vstack([0.*xuG,
-                         0.*xvG,
-                         hmax*np.exp(-(xhG**2 + (1.0*yhG)**2)/(Lx/6.0)**2)])
+        uvhG = np.vstack([0.*xuG,
+                          0.*xvG,
+                          hmax*np.exp(-(xhG**2 + (1.0*yhG)**2)/(Lx/6.0)**2)]).flatten()
 
         UVHG = np.empty((3*My, Mx, N), dtype='d')
-        UVHG[:, :, 0] = uvhg
+        UVHG[:, :, 0] = uvhG.reshape(3*My, Mx)
     else:
-        uvhg = None
+        uvhG = None
+        UVHG = None
+
+        
+    # allocate space to communicate the ghost columns
+    col = np.empty(3*My, dtype='d')
 
     comm.Barrier()         # start MPI timer
     t_start = MPI.Wtime()
 
+
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params)
     uvh  = uvh + dt*NLnm
-
-    # send this iteration...
-    # send uvh[:, 1] to rank-1
-    if 0 < rank:
-        comm.Send(uvh[:, 1].flatten(), dest=rank-1, tag=tags[rank])
-
-    # receive uvh[:, mx-1] to rank+1
-    if rank < p-1:
-        comm.Recv(col, source=rank+1, tag=tags[rank+1])
-        uvh[:, mx-1] = col
-
-    # send uvh[:, mx-2] to rank+1
-    if rank < p-1:
-        comm.Send(uvh[:, mx-2].flatten(), dest=rank+1, tag=tags[rank])
-
-    # receive u[:, 0] to rank-1
-    if 0 < rank:
-        comm.Recv(col, source=rank-1, tag=tags[rank-1])
-        uvh[:, 0] = col
+    # impose BCs on this iteration
+    uvh  = set_mpi_bdr(uvh, rank, p, mx, col, tags)
+    UVHG = gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, 1)      # add uvh to global soln
 
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
-
+    # impose BCs
+    uvh = set_mpi_bdr(uvh, rank, p, mx, col, tags)
+    UVHG = gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, 2)      # add to global soln
 
     # loop through time
-    for ii in range(3, N+1):
+    for ii in range(3, N):
         print ii
-        # send uvh[:, 1] to rank-1
-        if 0 < rank:
-            comm.Send(uvh[:, 1].flatten(), dest=rank-1, tag=tags[rank])
-
-        # receive uvh[:, mx-1] to rank+1
-        if rank < p-1:
-            comm.Recv(col, source=rank+1, tag=tags[rank+1])
-            uvh[:, mx-1] = col
-
-        # send uvh[:, mx-2] to rank+1
-        if rank < p-1:
-            comm.Send(uvh[:, mx-2].flatten(), dest=rank+1, tag=tags[rank])
-
-        # receive u[:, 0] to rank-1
-        if 0 < rank:
-            comm.Recv(col, source=rank-1, tag=tags[rank-1])
-            uvh[:, 0] = col
 
         # AB3 step
         NL, energy[ii-1], enstr[ii-1] = method(uvh, params)
@@ -323,20 +359,25 @@ def main():
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
-        # Gather parallel vectors to a serial vector
-        comm.Gather(uvh.flatten(), uvhg, root=0)
-        if rank == 0:
-            # evenly split ug into a list of p parts
-            temp = np.array_split(uvhg, p)
-            # reshape each part
-            temp = [a.reshape(3*My, mx) for a in temp]
-            UVHG[:, :, j] = np.hstack(temp)
+
+        # impose BCs
+        uvh  = set_mpi_bdr(uvh, rank, p, mx, col, tags)
+        UVHG = gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, ii)
+        # # Gather parallel vectors to a serial vector
+        # comm.Gather(uvh[:, 1:mx+1].flatten(), uvhG, root=0)
+        # if rank == 0:
+        #     # evenly split ug into a list of p parts
+        #     temp = np.array_split(uvhG, p)
+        #     # reshape each part
+        #     temp = [a.reshape(3*My, mx) for a in temp]
+        #     UVHG[:, :, ii] = np.hstack(temp)
 
 
     comm.Barrier()
     t_final = (MPI.Wtime() - t_start)  # stop MPI timer
 
     print t_final
+
 
     # PLOTTING
     if rank == 0:

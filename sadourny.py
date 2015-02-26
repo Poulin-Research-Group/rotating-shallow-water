@@ -177,7 +177,7 @@ def main():
 
     # Number of grid points
     sc  = 1
-    Mx, My  = 128*sc, 128*sc
+    Mx, My  = 16*sc, 16*sc
 
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
@@ -235,6 +235,7 @@ def main():
     t_start = time.time()
 
     # Begin Plotting
+    """
     tp  = 10.*dt
     npt = int(tp/dt)
     Iplot = Ih
@@ -244,10 +245,12 @@ def main():
     plt.colorbar()
     plt.title("h at t = %6.3f hours" % (0.))
     plt.draw()
+    """
 
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params)
     uvh  = uvh + dt*NLnm
+
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params)
@@ -262,6 +265,7 @@ def main():
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
+        """
         if (ii-0) % npt == 0:
             # make title
             t = ii*dt/(3600.0)
@@ -273,6 +277,7 @@ def main():
             plt.colorbar()
             plt.title(name)
             plt.draw()
+        """
 
     t_final = time.time()
 
