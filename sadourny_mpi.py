@@ -191,6 +191,7 @@ def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     else:
         # ... from rank 0
         comm.Recv(col, source=0,      tag=tags[0])
+        uvh[:, mx+1] = col
 
 
     # send uvh[:, mx] (second-last column)...
@@ -235,7 +236,7 @@ def main():
 
     # Number of grid points
     sc = 1
-    Mx, My  = 16*sc, 16*sc
+    Mx, My  = 128*sc, 128*sc
     mx = Mx / p  # x grid points per process
 
     # Grid Parameters
@@ -383,7 +384,7 @@ def main():
         im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
 
         print 'saving...'
-        im_ani.save('stepping_mpi_%d.mp4' % p)
+        im_ani.save('sadourny_mpi_%d.mp4' % p)
         print 'saved.'
 
 
