@@ -196,10 +196,10 @@ def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     # send uvh[:, mx] (second-last column)...
     if rank < p-1:
         # ...from rank to rank+1
-        comm.Send(uvh[:, mx-2].flatten(), dest=rank+1, tag=tags[rank])
+        comm.Send(uvh[:, mx].flatten(), dest=rank+1, tag=tags[rank])
     else:
         # ...from p-1 to 0
-        comm.Send(uvh[:, mx-2].flatten(), dest=0,      tag=tags[rank])
+        comm.Send(uvh[:, mx].flatten(), dest=0,      tag=tags[rank])
 
     # receive uvh[:, mx], place in uvh[:, 0] (first column) ...
     if 0 < rank:
@@ -235,7 +235,7 @@ def main():
 
     # Number of grid points
     sc = 1
-    Mx, My  = 128*sc, 128*sc
+    Mx, My  = 16*sc, 16*sc
     mx = Mx / p  # x grid points per process
 
     # Grid Parameters
@@ -293,7 +293,7 @@ def main():
     params.beta = beta
     params.gp   = gp
     params.H0   = H0
-    params.Mx   = mx    # notice that this is different! guarantees methods to work the same.
+    params.Mx   = mx
     params.My   = My
 
     # Initial Conditions with plot: u, v, h
@@ -345,8 +345,9 @@ def main():
     NLn, energy[1], enstr[1] = method(uvh, params)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
     # impose BCs
-    uvh = set_mpi_bdr(uvh, rank, p, mx, col, tags)
+    uvh  = set_mpi_bdr(uvh, rank, p, mx, col, tags)
     UVHG = gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, 2)      # add to global soln
+
 
     # loop through time
     for ii in range(3, N):
@@ -354,7 +355,7 @@ def main():
 
         # AB3 step
         NL, energy[ii-1], enstr[ii-1] = method(uvh, params)
-        uvh  = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
+        uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -363,14 +364,6 @@ def main():
         # impose BCs
         uvh  = set_mpi_bdr(uvh, rank, p, mx, col, tags)
         UVHG = gather_uvh(uvh, uvhG, UVHG, mx, My, rank, p, ii)
-        # # Gather parallel vectors to a serial vector
-        # comm.Gather(uvh[:, 1:mx+1].flatten(), uvhG, root=0)
-        # if rank == 0:
-        #     # evenly split ug into a list of p parts
-        #     temp = np.array_split(uvhG, p)
-        #     # reshape each part
-        #     temp = [a.reshape(3*My, mx) for a in temp]
-        #     UVHG[:, :, ii] = np.hstack(temp)
 
 
     comm.Barrier()
@@ -391,7 +384,6 @@ def main():
 
         print 'saving...'
         im_ani.save('stepping_mpi_%d.mp4' % p)
-        # plt.show()
         print 'saved.'
 
 

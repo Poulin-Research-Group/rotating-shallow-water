@@ -177,7 +177,7 @@ def main():
 
     # Number of grid points
     sc  = 1
-    Mx, My  = 16*sc, 16*sc
+    Mx, My  = 128*sc, 128*sc
 
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
@@ -231,57 +231,36 @@ def main():
 
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
+    UVH = np.empty((3*My, Mx, N), dtype='d')
+    UVH[:, :, 0] = uvh
 
     t_start = time.time()
-
-    # Begin Plotting
-    """
-    tp  = 10.*dt
-    npt = int(tp/dt)
-    Iplot = Ih
-    plt.ion()
-    plt.clf()
-    plt.pcolormesh(xh/1e3, yh/1e3, uvh[Iplot, :])
-    plt.colorbar()
-    plt.title("h at t = %6.3f hours" % (0.))
-    plt.draw()
-    """
 
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params)
     uvh  = uvh + dt*NLnm
+    UVH[:, :, 1] = uvh
 
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
+    UVH[:, :, 2] = uvh
 
-    for ii in range(3, N+1):
+    for ii in range(3, N):
 
         # AB3 step
         NL, energy[ii-1], enstr[ii-1] = method(uvh, params)
-        uvh  = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
+        uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
+        UVH[:, :, ii] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
-        """
-        if (ii-0) % npt == 0:
-            # make title
-            t = ii*dt/(3600.0)
-            name = "h at t = %6.3f hours" % (t)
-
-            # Plot PV (or streamfunction)
-            plt.clf()
-            plt.pcolormesh(xh/1e3, yh/1e3, uvh[Iplot, :])
-            plt.colorbar()
-            plt.title(name)
-            plt.draw()
-        """
 
     t_final = time.time()
-
     print t_final - t_start
+
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
