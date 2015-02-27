@@ -71,10 +71,10 @@ def main():
     Mx, My  = 128*sc, 128*sc
     mx = Mx / p  # x grid points per process
 
+    # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
 
-    # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # x conditions
     dx = Lx/Mx
     x0, xf = -Lx/2, Lx/2

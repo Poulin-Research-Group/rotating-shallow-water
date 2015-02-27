@@ -54,123 +54,8 @@
 #        flux_sw_enst.py  - Sadourny's second method (enstrophy conserving)
 
 
-# Import libraries
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import sys
-import time
-
-
-class wavenum:
-    pass
-
-
-def dxp(f, dx):
-    fx = (np.roll(f, -1, 1) - f)/dx
-    return fx
-
-
-def dyp(f, dy):
-    fy = (np.roll(f, -1, 0) - f)/dy
-    return fy
-
-
-def dxm(f, dx):
-    fx = (f - np.roll(f, 1, 1))/dx
-    return fx
-
-
-def dym(f, dy):
-    fy = (f - np.roll(f, 1, 0))/dy
-    return fy
-
-
-def axp(f):
-    afx = 0.5*(np.roll(f, -1, 1) + f)
-    return afx
-
-
-def ayp(f):
-    afy = 0.5*(np.roll(f, -1, 0) + f)
-    return afy
-
-
-def axm(f):
-    afx = 0.5*(f + np.roll(f, 1, 1))
-    return afx
-
-
-def aym(f):
-    afy = 0.5*(f + np.roll(f, 1, 0))
-    return afy
-
-
-def flux_sw_ener(uvh, params):
-
-    # Define parameters
-    dx = params.dx
-    dy = params.dy
-    gp = params.gp
-    f0 = params.f0
-    H0 = params.H0
-    Mx = params.Mx
-    My = params.My
-
-    # Separate fields
-    Iu, Iv, Ih = range(0, My), range(My, 2*My), range(2*My, 3*My)
-
-    # Turn off nonlinear terms
-    h = H0  +  uvh[Ih, :]
-    U = axp(h)*uvh[Iu, :]
-    V = ayp(h)*uvh[Iv, :]
-    B = gp*h + 0.5*(axm(uvh[Iu, :]**2) + aym(uvh[Iv, :]**2))
-    q = (dxp(uvh[Iv, :], dx) - dyp(uvh[Iu, :], dy) + f0)/ayp(axp(h))
-
-    # Compute fluxes
-    flux = np.vstack([aym(q*axp(V)) - dxp(B, dx),
-                     -axm(q*ayp(U)) - dyp(B, dy),
-                     -dxm(U, dx) - dym(V, dy)])
-
-    # compute energy and enstrophy
-    energy = 0.5*np.mean(gp*h**2 + h*(axm(uvh[Iu, :]**2) + aym(uvh[Iv, :]**2)))
-    enstrophy = 0.5*np.mean(q**2*ayp(axp(h)))
-
-    return flux, energy, enstrophy
-
-
-def flux_sw_enst(uvh, params):
-
-    # Define parameters
-    dx = params.dx
-    dy = params.dy
-    gp = params.gp
-    f0 = params.f0
-    H0 = params.H0
-    Mx = params.Mx
-    My = params.My
-
-    # Separate fields
-    Iu, Iv, Ih = range(0, My), range(My, 2*My), range(2*My, 3*My)
-
-    h = H0 + uvh[Ih, :]
-    U = axp(h)*uvh[Iu, :]
-    V = ayp(h)*uvh[Iv, :]
-    B = gp*h + 0.5*(axm(uvh[Iu, :]**2) + aym(uvh[Iv, :]**2))
-    q = (dxp(uvh[Iv, :], dx) - dyp(uvh[Iu, :], dy) + f0)/ayp(axp(h))
-
-    # Compute fluxe (use np.vstack)
-    flux1 =  aym(q)*aym(axp(V)) - dxp(B, dx)
-    flux2 = -axm(q)*axm(ayp(U)) - dyp(B, dy)
-    flux3 = -dxm(U, dx) - dym(V, dy)
-
-    flux = np.vstack([flux1, flux2, flux3])
-
-    # compute energy and enstrophy
-    energy = 0.5*np.mean(gp*h**2 + h*(axm(uvh[Iu, :]**2) + aym(uvh[Iv, :]**2)))
-    enstrophy = 0.5*np.mean(q**2*ayp(axp(h)))
-
-    return flux, energy, enstrophy
+from sadourny_setup import flux_sw_ener, flux_sw_enst, wavenum, np, plt, animation, sys, \
+                           time, PLOTTO_649
 
 
 def main():
@@ -179,9 +64,9 @@ def main():
     sc  = 1
     Mx, My  = 128*sc, 128*sc
 
+    # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
-    Iu, Iv, Ih = range(0, My), range(My, 2*My), range(2*My, 3*My)
 
     # x conditions
     dx = Lx/Mx
@@ -202,7 +87,6 @@ def main():
     dt = 5./sc
     t0, tf = 0.0, 3600.0
     N  = int((tf - t0)/dt)
-    t  = np.arange(N)*dt
 
     method = flux_sw_enst
 
@@ -213,15 +97,7 @@ def main():
     xv, yv = np.meshgrid(x,  ys)
 
     # Modify class
-    params = wavenum()
-    params.dx   = dx
-    params.dy   = dy
-    params.f0   = f0
-    params.beta = beta
-    params.gp   = gp
-    params.H0   = H0
-    params.Mx   = Mx
-    params.My   = My
+    params = wavenum(dx, dy, f0, beta, gp, H0, Mx, My)
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -231,36 +107,38 @@ def main():
 
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
-    UVH = np.empty((3*My, Mx, N), dtype='d')
-    UVH[:, :, 0] = uvh
 
+    # UVH = np.empty((3*My, Mx, N), dtype='d')
+    # UVH[:, :, 0] = uvh
+
+    # BEGIN SOLVING =====================================================================
     t_start = time.time()
 
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params)
     uvh  = uvh + dt*NLnm
-    UVH[:, :, 1] = uvh
-
+    # UVH[:, :, 1] = uvh
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
-    UVH[:, :, 2] = uvh
+    # UVH[:, :, 2] = uvh
 
-    for ii in range(3, N):
-
+    # loop through time
+    for n in range(3, N):
         # AB3 step
-        NL, energy[ii-1], enstr[ii-1] = method(uvh, params)
+        NL, energy[n-1], enstr[n-1] = method(uvh, params)
         uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
-        UVH[:, :, ii] = uvh
+        # UVH[:, :, n] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
-
     t_final = time.time()
     print t_final - t_start
 
+    # PLOTTING ==========================================================================
+    # PLOTTO_649(UVHG, x, y, My, N, './anims/sadourny.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]

@@ -227,7 +227,50 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, My, n):
 
 
 class wavenum(object):
-    """A placeholder for the parameters of the solution."""
+    """
+    A placeholder for the parameters of the solution.
+
+    Parameters
+    ----------
+    dx : float64
+        the spacing between two x points of the same kind (staggered vs
+        non-staggered)
+    dy : float64
+        the spacing between two y points of the same kind
+    f0 : float64
+        TODO
+    beta : float64
+        TODO
+    gp : float64
+        TODO
+    H0 : float64
+        TODO
+    Mx : int
+        The number of x points. If running in parallel, Mx is the number of x
+        points per process, excluding ghost points.
+    My : int
+        The number of y points.
+
+    Attributes
+    ----------
+    Iu_i : int
+        The row number that the matrix of u values begins at.
+    Iu_f : int
+        The row number that the matrix of u values end at, plus one for the
+        sake of indexing.
+    Iv_i : int
+        The row number that the matrix of v values begins at.
+    Iv_f : int
+        The row number that the matrix of v values end at, plus one for the
+        sake of indexing.
+    Ih_i : int
+        The row number that the matrix of h values begins at.
+    Ih_f : int
+        The row number that the matrix of h values end at, plus one for the
+        sake of indexing.
+
+    All parameters are also defined as attributes with the same name.
+    """
     def __init__(self, dx, dy, f0, beta, gp, H0, Mx, My):
         super(wavenum, self).__init__()
         self.dx   = dx
