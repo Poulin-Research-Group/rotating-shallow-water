@@ -4,7 +4,9 @@ import matplotlib.animation as animation
 import sys
 import time
 from mpi4py import MPI
+from flux_ener import calc_h, calc_u, calc_v
 comm = MPI.COMM_WORLD
+
 
 def dxp(f, dx):
     fx = (np.roll(f, -1, 1) - f)/dx
@@ -62,7 +64,7 @@ def flux_sw_ener(uvh, params):
     Ih_f = params.Ih_f
 
     # Turn off nonlinear terms
-    h = H0  +  uvh[Ih_i:Ih_f, :]
+    h = H0 + uvh[Ih_i:Ih_f]
     U = axp(h)*uvh[Iu_i:Iu_f, :]
     V = ayp(h)*uvh[Iv_i:Iv_f, :]
     B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
@@ -95,7 +97,7 @@ def flux_sw_enst(uvh, params):
     Ih_i = params.Ih_i
     Ih_f = params.Ih_f
 
-    h = H0  +  uvh[Ih_i:Ih_f, :]
+    h = H0 + uvh[Ih_i:Ih_f]
     U = axp(h)*uvh[Iu_i:Iu_f, :]
     V = ayp(h)*uvh[Iv_i:Iv_f, :]
     B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
@@ -107,6 +109,43 @@ def flux_sw_enst(uvh, params):
     flux3 = -dxm(U, dx) - dym(V, dy)
 
     flux = np.vstack([flux1, flux2, flux3])
+
+    # compute energy and enstrophy
+    energy = 0.5*np.mean(gp*h**2 + h*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2)))
+    enstrophy = 0.5*np.mean(q**2*ayp(axp(h)))
+
+    return flux, energy, enstrophy
+
+
+def flux_sw_ener_F(uvh, params):
+
+    # Define parameters
+    dx = params.dx
+    dy = params.dy
+    gp = params.gp
+    f0 = params.f0
+    H0 = params.H0
+    Iu_i = params.Iu_i
+    Iu_f = params.Iu_f
+    Iv_i = params.Iv_i
+    Iv_f = params.Iv_f
+    Ih_i = params.Ih_i
+    Ih_f = params.Ih_f
+
+    # Turn off nonlinear terms
+    # h = H0 + uvh[Ih_i:Ih_f]
+    h = calc_h(uvh, H0, Ih_i)
+    # U = axp(h)*uvh[Iu_i:Iu_f, :]
+    U = calc_u(uvh, h)
+    # V = ayp(h)*uvh[Iv_i:Iv_f, :]
+    V = calc_v(uvh, h, Iv_i)
+    B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
+    q = (dxp(uvh[Iv_i:Iv_f, :], dx) - dyp(uvh[Iu_i:Iu_f, :], dy) + f0)/ayp(axp(h))
+
+    # Compute fluxes
+    flux = np.vstack([aym(q*axp(V)) - dxp(B, dx),
+                     -axm(q*ayp(U)) - dyp(B, dy),
+                     -dxm(U, dx) - dym(V, dy)])
 
     # compute energy and enstrophy
     energy = 0.5*np.mean(gp*h**2 + h*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2)))
@@ -185,7 +224,7 @@ def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     return uvh
 
 
-def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, My, n):
+def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, Ny, n):
     """
     Gather each process' slice of uvh and store it in the global set of
     solutions. Gathering is done on process 0.
@@ -193,17 +232,17 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, My, n):
     Parameters
     ----------
     uvh : ndarray
-        process' slice of the solution (dimensions: (My, mx+2))
+        process' slice of the solution (dimensions: (Ny, mx+2))
     uvhG : ndarray
-        the global solution, excluding ghost points (dimensions: (My, p*mx))
+        the global solution, excluding ghost points (dimensions: (Ny, p*mx))
     UVHG : ndarray
-        the set of global solutions (dimensions: (My, p*mx, N)) where N is the
+        the set of global solutions (dimensions: (Ny, p*mx, N)) where N is the
         number of time steps defined elsewhere.
     rank : int
         rank of this process
     mx : int
         the number of real (non-ghost) x points per process
-    My : int
+    Ny : int
         the number of y points
     n : int
         time-step number
@@ -219,7 +258,7 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, My, n):
         # evenly split ug into a list of p parts
         temp = np.array_split(uvhG, p)
         # reshape each part
-        temp = [a.reshape(3*My, mx) for a in temp]
+        temp = [a.reshape(3*Ny, mx) for a in temp]
         UVHG[:, :, n] = np.hstack(temp)
         return UVHG
     else:
@@ -245,10 +284,10 @@ class wavenum(object):
         TODO
     H0 : float64
         TODO
-    Mx : int
-        The number of x points. If running in parallel, Mx is the number of x
+    Nx : int
+        The number of x points. If running in parallel, Nx is the number of x
         points per process, excluding ghost points.
-    My : int
+    Ny : int
         The number of y points.
 
     Attributes
@@ -271,7 +310,7 @@ class wavenum(object):
 
     All parameters are also defined as attributes with the same name.
     """
-    def __init__(self, dx, dy, f0, beta, gp, H0, Mx, My):
+    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny):
         super(wavenum, self).__init__()
         self.dx   = dx
         self.dy   = dy
@@ -279,14 +318,14 @@ class wavenum(object):
         self.beta = beta
         self.gp   = gp
         self.H0   = H0
-        self.Mx   = Mx
-        self.My   = My
+        self.Nx   = Nx
+        self.Ny   = Ny
         self.Iu_i = 0    # first row of u
-        self.Iu_f = My   # last row of u; not inclusive!
-        self.Iv_i = My   # first row of v...
-        self.Iv_f = 2*My
-        self.Ih_i = 2*My
-        self.Ih_f = 3*My
+        self.Iu_f = Ny   # last row of u; not inclusive!
+        self.Iv_i = Ny   # first row of v...
+        self.Iv_f = 2*Ny
+        self.Ih_i = 2*Ny
+        self.Ih_f = 3*Ny
 
 
 def create_global_objects(rank, xG, yG, xsG, ysG, hmax, Lx, N):
@@ -330,8 +369,8 @@ def create_global_objects(rank, xG, yG, xsG, ysG, hmax, Lx, N):
         xuG, yuG = np.meshgrid(xsG, yG)
         xvG, yvG = np.meshgrid(xG,  ysG)
 
-        Mx = len(xG)
-        My = len(yG)
+        Nx = len(xG)
+        Ny = len(yG)
 
         # global initial solution
         uvhG = np.vstack([0.*xuG,
@@ -339,8 +378,8 @@ def create_global_objects(rank, xG, yG, xsG, ysG, hmax, Lx, N):
                           hmax*np.exp(-(xhG**2 + (1.0*yhG)**2)/(Lx/6.0)**2)]).flatten()
 
         # set of ALL global solutions
-        UVHG = np.empty((3*My, Mx, N), dtype='d')
-        UVHG[:, :, 0] = uvhG.reshape(3*My, Mx)
+        UVHG = np.empty((3*Ny, Nx, N), dtype='d')
+        UVHG[:, :, 0] = uvhG.reshape(3*Ny, Nx)
 
     else:
         uvhG = None
@@ -390,7 +429,7 @@ def create_x_points(rank, p, xG, xsG, mx):
     return (x, xs)
 
 
-def PLOTTO_649(UVHG, xG, yG, My, N, output_name):
+def PLOTTO_649(UVHG, xG, yG, Ny, N, output_name):
     """
     Creates an animation of the system evolving through time by using the
     set of global solutions.
@@ -403,7 +442,7 @@ def PLOTTO_649(UVHG, xG, yG, My, N, output_name):
         global non-staggered x points
     yG : ndarray
         global non-staggered y points
-    My : int
+    Ny : int
         number of y points
     N : int
         number of time steps
@@ -415,7 +454,7 @@ def PLOTTO_649(UVHG, xG, yG, My, N, output_name):
     fig = plt.figure()
     ims = []
     for n in xrange(N):
-        ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2*My:3*My, :, n], norm=plt.Normalize(0, 1)), ))
+        ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2*Ny:3*Ny, :, n], norm=plt.Normalize(0, 1)), ))
 
     im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
     im_ani.save(output_name)

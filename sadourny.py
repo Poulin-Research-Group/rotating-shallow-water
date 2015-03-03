@@ -42,7 +42,7 @@
 #      |           |          |         |
 #      h --  u --  h  -- u -- h -- u -- h --
 #
-#      Because of periodicity all fields are Mx by My
+#      Because of periodicity all fields are Nx by Ny
 #      But we need to define different grids for u,v,h,q
 #
 # Numerical Method:
@@ -55,30 +55,30 @@
 
 
 from sadourny_setup import flux_sw_ener, flux_sw_enst, wavenum, np, plt, animation, sys, \
-                           time, PLOTTO_649
+                           time, PLOTTO_649, flux_sw_ener_F
 
 
-def main():
+def main(method, sc):
 
     # Number of grid points
-    sc  = 1
-    Mx, My  = 128*sc, 128*sc
+    # sc  = 1
+    Nx, Ny  = 128*sc, 128*sc
 
     # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
 
     # x conditions
-    dx = Lx/Mx
+    dx = Lx/Nx
     x0, xf = -Lx/2, Lx/2
-    x  = np.linspace(x0, xf-dx, Mx)
-    xs = np.linspace(x0+dx/2, xf-dx/2, Mx)
+    x  = np.linspace(x0, xf-dx, Nx)
+    xs = np.linspace(x0+dx/2, xf-dx/2, Nx)
 
     # y conditions
-    dy = Ly/My
+    dy = Ly/Ny
     y0, yf = -Ly/2, Ly/2
-    y  = np.linspace(y0, yf-dy, My)
-    ys = np.linspace(y0+dy/2, yf-dy/2, My)
+    y  = np.linspace(y0, yf-dy, Ny)
+    ys = np.linspace(y0+dy/2, yf-dy/2, Ny)
 
     # Physical parameters
     f0, beta, gp, H0  = 1.e-4, 0e-11, 9.81, 500.
@@ -88,7 +88,7 @@ def main():
     t0, tf = 0.0, 3600.0
     N  = int((tf - t0)/dt)
 
-    method = flux_sw_enst
+    # method = flux_sw_enst
 
     # Define Grid (staggered grid)
     xq, yq = np.meshgrid(xs, ys)
@@ -97,7 +97,9 @@ def main():
     xv, yv = np.meshgrid(x,  ys)
 
     # Modify class
-    params = wavenum(dx, dy, f0, beta, gp, H0, Mx, My)
+    params = wavenum(dx, dy, f0, beta, gp, H0, Nx, Ny)
+    # if method is flux_ener_F:
+    #     params = np.array([params.dx, params.gp, params.f0, params.H0])
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -108,8 +110,8 @@ def main():
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
 
-    # UVH = np.empty((3*My, Mx, N), dtype='d')
-    # UVH[:, :, 0] = uvh
+    UVH = np.empty((3*Ny, Nx, N), dtype='d')
+    UVH[:, :, 0] = uvh
 
     # BEGIN SOLVING =====================================================================
     t_start = time.time()
@@ -117,19 +119,19 @@ def main():
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params)
     uvh  = uvh + dt*NLnm
-    # UVH[:, :, 1] = uvh
+    UVH[:, :, 1] = uvh
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
-    # UVH[:, :, 2] = uvh
+    UVH[:, :, 2] = uvh
 
     # loop through time
     for n in range(3, N):
         # AB3 step
         NL, energy[n-1], enstr[n-1] = method(uvh, params)
         uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
-        # UVH[:, :, n] = uvh
+        UVH[:, :, n] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -138,7 +140,7 @@ def main():
     print t_final - t_start
 
     # PLOTTING ==========================================================================
-    # PLOTTO_649(UVHG, x, y, My, N, './anims/sadourny.mp4')
+    PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -154,4 +156,4 @@ def main():
     plt.show()
     """
 
-main()
+main(flux_sw_ener_F, 1)

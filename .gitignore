@@ -7,6 +7,4 @@ libs/
 **/*.save
 **/*.so
 
-NEW_USERS.html
-
 .ipynb_checkpoints/
