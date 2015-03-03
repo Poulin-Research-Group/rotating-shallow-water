@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 import sys
 import time
 from mpi4py import MPI
-from flux_ener import calc_h, calc_u, calc_v
+from flux_ener import calc_h, calc_u, calc_v, calc_b, calc_q
 comm = MPI.COMM_WORLD
 
 
@@ -138,9 +138,11 @@ def flux_sw_ener_F(uvh, params):
     # U = axp(h)*uvh[Iu_i:Iu_f, :]
     U = calc_u(uvh, h)
     # V = ayp(h)*uvh[Iv_i:Iv_f, :]
-    V = calc_v(uvh, h, Iv_i)
-    B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
-    q = (dxp(uvh[Iv_i:Iv_f, :], dx) - dyp(uvh[Iu_i:Iu_f, :], dy) + f0)/ayp(axp(h))
+    V = calc_v(uvh, h, Iv_i, Iv_f)
+    # B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
+    B = calc_b(uvh, h, gp, Iv_i, Iv_f)
+    # q = (dxp(uvh[Iv_i:Iv_f, :], dx) - dyp(uvh[Iu_i:Iu_f, :], dy) + f0)/ayp(axp(h))
+    q = calc_q(uvh, h, dx, dy, f0, Iv_i, Iv_f)
 
     # Compute fluxes
     flux = np.vstack([aym(q*axp(V)) - dxp(B, dx),
