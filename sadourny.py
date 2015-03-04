@@ -140,9 +140,8 @@ def main(method, sc):
     print t_final - t_start
 
     # PLOTTING ==========================================================================
-    PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny.mp4')
+    # PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny.mp4')
 
-    """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
 
@@ -153,7 +152,6 @@ def main(method, sc):
     ax1.set_title('Energy')
     ax2.plot((enstr-enstr[0])/enstr[0], '-or',  linewidth=2, label='Enstrophy')
     ax2.set_title('Enstrophy')
-    plt.show()
-    """
+    plt.savefig('./anims/ener-enst-FORTRAN.png')
 
 main(flux_sw_ener_F, 1)
