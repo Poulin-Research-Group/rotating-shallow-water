@@ -136,7 +136,7 @@ c       last row of q, all columns (except last)
         q(Ny, c) = ((uvh(Iv_f, c) + uvh(Iv_f, c+1)) / dx
      &           +  (uvh(Ny, c)   + uvh(1, c)) / dy
      &           +  f0)
-     &           / (0.25*(h(1,c+1) + h(1,c) + h(Ny,c+1) + h(r,c)))
+     &           / (0.25*(h(1,c+1) + h(1,c) + h(Ny,c+1) + h(Ny,c)))
       enddo
 
 c     last column of q, all rows (except last)
@@ -144,7 +144,7 @@ c     last column of q, all rows (except last)
         q(r, Nx) = ((uvh(r+Iv_i, Nx) + uvh(r+Iv_i, 1)) / dx
      &           +  (uvh(r, Nx)      + uvh(r+1, Nx)) / dy
      &           +  f0)
-     &           / (0.25*(h(r+1,1) + h(r+1,Nx) + h(r,1) + h(r,c)))
+     &           / (0.25*(h(r+1,1) + h(r+1,Nx) + h(r,1) + h(r,Nx)))
       enddo
 
 c     last column and row of q
@@ -172,27 +172,69 @@ cf2py intent(out) :: flux_1
       do c=1,Nx-1
         do r=2,Ny
           flux_1(r,c) = (q(r-1,c) * (V(r-1,c+1) + V(r-1,c)) 
-     &                +  q(r,c) * (V(r,c+1) + V(r,c)))*0.25 
+     &                +  q(r,c)   * (V(r,c+1)   + V(r,c)))*0.25 
      &                - (B(r,c+1) - B(r,c)) / dx
         enddo
 
 c       first row, all columns (except last)
         flux_1(1,c) = (q(Ny,c) * (V(Ny,c+1) + V(Ny,c))
-     &              +  q(1,c) * (V(r,c+1) + V(r,c)))*0.25
+     &              +  q(1,c)  * (V(1,c+1)  + V(1,c)))*0.25
      &              - (B(1,c+1) - B(1,c)) / dx
 
       enddo
 
 c     last column, all rows (except first)
       do r=2,Ny 
-        flux_1(r,Nx) = (q(r-1,Nx) * (V(r-1,1) + V(r-1,c)) 
-     &               +  q(1,c) * (V(r,1) + V(r,c)))*0.25
-     &               - (B(r,1) - B(r,c)) / dx
+        flux_1(r,Nx) = (q(r-1,Nx) * (V(r-1,1) + V(r-1,Nx)) 
+     &               +  q(r,Nx)   * (V(r,1)   + V(r,Nx)))*0.25
+     &               - (B(r,1) - B(r,Nx)) / dx
       enddo
 
 c     first row, last column
-      flux_1(1,Nx) = (q(Ny,c) * (V(Ny,1) + V(Ny,Nx)) 
-     &             +  q(1,Nx) * (V(r,1) + V(1,Nx)))*0.25
+      flux_1(1,Nx) = (q(Ny,Nx) * (V(Ny,1) + V(Ny,Nx))
+     &             +  q(1,Nx)  * (V(1,1)  + V(1,Nx)))*0.25
      &             - (B(1,1) - B(1,Nx)) / dx
+
+      end
+
+
+c     calculating second term of flux array ====================================      
+      subroutine calc_flux_2(q, U, B, flux_2, Nx, Ny, dy)
+      implicit none
+      integer Nx, Ny
+      double precision q(Ny,Nx), U(Ny,Nx), B(Ny,Nx), flux_2(Ny,Nx)
+
+      double precision dy
+      integer r, c
+
+cf2py intent(in) :: q, U, B, dy
+cf2py intent(hide) :: Nx, Ny
+cf2py intent(out) :: flux_2
+
+      do c=2,Nx
+        do r=1,Ny-1
+          flux_2(r,c) = -(q(r,c-1) * (U(r+1,c-1) + U(r,c-1))
+     &                +   q(r,c)   * (U(r+1,c)   + U(r,c)))*0.25 
+     &                -  (B(r+1,c) - B(r,c)) / dy
+        enddo
+
+c       last row, all columns (except first)
+        flux_2(Ny,c) = -(q(Ny,c-1) * (U(1,c-1) + U(Ny,c-1))
+     &               +   q(Ny,c)   * (U(1,c)   + U(Ny,c)))*0.25
+     &               -  (B(1,c) - B(Ny,c)) / dy
+
+      enddo
+
+c     first column, all rows (except last)
+      do r=1,Ny-1
+        flux_2(r,1) = -(q(r,Nx) * (U(r+1,Nx) + U(r,Nx))
+     &              +   q(r,1)  * (U(r+1,1)  + U(r,1)))*0.25
+     &              -  (B(r+1,1) - B(r,1)) / dy
+      enddo
+
+c     first row, last column
+      flux_2(1,Nx) = -(q(1,1) * (U(Ny,1)  + U(1,1)) 
+     &             +  q(1,Nx) * (U(Ny,Nx) + U(1,Nx)))*0.25
+     &             -  (B(Ny,1) - B(1,Nx)) / dy
 
       end

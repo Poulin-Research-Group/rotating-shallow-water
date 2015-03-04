@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 import sys
 import time
 from mpi4py import MPI
-from flux_ener import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1
+from flux_ener import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, calc_flux_2
 comm = MPI.COMM_WORLD
 
 
@@ -148,8 +148,11 @@ def flux_sw_ener_F(uvh, params):
     # flux = np.vstack([aym(q*axp(V)) - dxp(B, dx),
     #                  -axm(q*ayp(U)) - dyp(B, dy),
     #                  -dxm(U, dx) - dym(V, dy)])
+    # flux = np.vstack([calc_flux_1(q, V, B, dx),
+    #                   -axm(q*ayp(U)) - dyp(B, dy),
+    #                   -dxm(U, dx) - dym(V, dy)])
     flux = np.vstack([calc_flux_1(q, V, B, dx),
-                      -axm(q*ayp(U)) - dyp(B, dy),
+                      calc_flux_2(q, U, B, dy),
                       -dxm(U, dx) - dym(V, dy)])
 
     # compute energy and enstrophy
