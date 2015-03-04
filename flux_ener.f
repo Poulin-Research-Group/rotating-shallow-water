@@ -238,3 +238,41 @@ c     first row, last column
      &             -  (B(Ny,1) - B(1,Nx)) / dy
 
       end
+
+
+c     calculating third term of flux array ====================================      
+      subroutine calc_flux_3(U, V, flux_3, Nx, Ny, dx, dy)
+      implicit none
+      integer Nx, Ny
+      double precision U(Ny,Nx), V(Ny,Nx), flux_3(Ny,Nx)
+
+      double precision dx, dy
+      integer r, c
+
+cf2py intent(in) :: U, V, dx, dy
+cf2py intent(hide) :: Nx, Ny
+cf2py intent(out) :: flux_3
+
+      do c=2,Nx
+        do r=2,Ny
+          flux_3(r,c) = (U(r,c-1) - U(r,c)) / dx
+     &                + (V(r-1,c) - V(r,c)) / dy
+        enddo
+
+c       first row, all columns (except first)
+        flux_3(1,c) = (U(1,c-1) - U(1,c)) / dx
+     &              + (V(Ny,c)  - V(1,c)) / dy
+
+      enddo
+
+c     first column, all rows (except first)
+      do r=2,Ny
+        flux_3(r,1) = (U(r,Nx)  - U(r,1)) / dx
+     &              + (V(r-1,1) - V(r,1)) / dy
+      enddo
+
+c     first row, first column
+      flux_3(1,1) = (U(1,Nx) - U(1,1)) / dx
+     &            + (V(Ny,1) - V(1,1)) / dy
+
+      end
