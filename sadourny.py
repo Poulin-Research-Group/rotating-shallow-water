@@ -88,8 +88,6 @@ def main(method, sc):
     t0, tf = 0.0, 3600.0
     N  = int((tf - t0)/dt)
 
-    # method = flux_sw_enst
-
     # Define Grid (staggered grid)
     xq, yq = np.meshgrid(xs, ys)
     xh, yh = np.meshgrid(x,  y)
@@ -100,8 +98,8 @@ def main(method, sc):
     params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny)
     inds   = Inds(Ny)
     if method is flux_ener_f:
-        inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
         params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0])
+        inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -112,8 +110,8 @@ def main(method, sc):
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
 
-    UVH = np.empty((3*Ny, Nx, N), dtype='d')
-    UVH[:, :, 0] = uvh
+    # UVH = np.empty((3*Ny, Nx, N), dtype='d')
+    # UVH[:, :, 0] = uvh
 
     # BEGIN SOLVING =====================================================================
     t_start = time.time()
@@ -121,19 +119,19 @@ def main(method, sc):
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params, inds)
     uvh  = uvh + dt*NLnm
-    UVH[:, :, 1] = uvh
+    # UVH[:, :, 1] = uvh
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params, inds)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
-    UVH[:, :, 2] = uvh
+    # UVH[:, :, 2] = uvh
 
     # loop through time
     for n in range(3, N):
         # AB3 step
         NL, energy[n-1], enstr[n-1] = method(uvh, params, inds)
         uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
-        UVH[:, :, n] = uvh
+        # UVH[:, :, n] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -147,6 +145,7 @@ def main(method, sc):
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
 
+    """
     fig, axarr = plt.subplots(2, sharex=True)
     ax1 = plt.subplot(2, 1, 1)
     ax2 = plt.subplot(2, 1, 2)
@@ -155,6 +154,6 @@ def main(method, sc):
     ax2.plot((enstr-enstr[0])/enstr[0], '-or',  linewidth=2, label='Enstrophy')
     ax2.set_title('Enstrophy')
     plt.show()
-    # plt.savefig('./anims/ener-enst-FORTRAN.png')
+    """
 
-main(flux_ener_, 1)
+main(flux_ener_f, 3)
