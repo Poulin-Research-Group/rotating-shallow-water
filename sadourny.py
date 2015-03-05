@@ -54,8 +54,8 @@
 #        flux_sw_enst.py  - Sadourny's second method (enstrophy conserving)
 
 
-from sadourny_setup import flux_sw_ener, flux_sw_enst, wavenum, np, plt, animation, sys, \
-                           time, PLOTTO_649, flux_sw_ener_F
+from sadourny_setup import flux_sw_ener, flux_sw_enst, Params, np, plt, animation, sys, \
+                           time, PLOTTO_649, flux_sw_ener_Fcomp, flux_ener_f, Inds
 
 
 def main(method, sc):
@@ -97,9 +97,11 @@ def main(method, sc):
     xv, yv = np.meshgrid(x,  ys)
 
     # Modify class
-    params = wavenum(dx, dy, f0, beta, gp, H0, Nx, Ny)
-    # if method is flux_ener_F:
-    #     params = np.array([params.dx, params.gp, params.f0, params.H0])
+    params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny)
+    inds   = Inds(Ny)
+    if method is flux_ener_f:
+        inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
+        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0])
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -117,19 +119,19 @@ def main(method, sc):
     t_start = time.time()
 
     # Euler step
-    NLnm, energy[0], enstr[0] = method(uvh, params)
+    NLnm, energy[0], enstr[0] = method(uvh, params, inds)
     uvh  = uvh + dt*NLnm
     UVH[:, :, 1] = uvh
 
     # AB2 step
-    NLn, energy[1], enstr[1] = method(uvh, params)
+    NLn, energy[1], enstr[1] = method(uvh, params, inds)
     uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
     UVH[:, :, 2] = uvh
 
     # loop through time
     for n in range(3, N):
         # AB3 step
-        NL, energy[n-1], enstr[n-1] = method(uvh, params)
+        NL, energy[n-1], enstr[n-1] = method(uvh, params, inds)
         uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
         UVH[:, :, n] = uvh
 
@@ -140,7 +142,7 @@ def main(method, sc):
     print t_final - t_start
 
     # PLOTTING ==========================================================================
-    # PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny.mp4')
+    # PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny-flux_ener_sw.mp4')
 
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
@@ -152,6 +154,7 @@ def main(method, sc):
     ax1.set_title('Energy')
     ax2.plot((enstr-enstr[0])/enstr[0], '-or',  linewidth=2, label='Enstrophy')
     ax2.set_title('Enstrophy')
-    plt.savefig('./anims/ener-enst-FORTRAN.png')
+    plt.show()
+    # plt.savefig('./anims/ener-enst-FORTRAN.png')
 
-main(flux_sw_ener_F, 1)
+main(flux_ener_, 1)

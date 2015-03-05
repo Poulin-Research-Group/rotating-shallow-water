@@ -4,8 +4,9 @@ import matplotlib.animation as animation
 import sys
 import time
 from mpi4py import MPI
-from flux_ener import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, calc_flux_2, calc_flux_3, \
-                      calc_energy, calc_enstrophy
+from flux_ener_components import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, \
+                                 calc_flux_2, calc_flux_3, calc_energy, calc_enstrophy
+from flux_sw_ener import flux_ener_f
 comm = MPI.COMM_WORLD
 
 
@@ -49,7 +50,7 @@ def aym(f):
     return afy
 
 
-def flux_sw_ener(uvh, params):
+def flux_sw_ener(uvh, params, inds):
 
     # Define parameters
     dx = params.dx
@@ -57,12 +58,12 @@ def flux_sw_ener(uvh, params):
     gp = params.gp
     f0 = params.f0
     H0 = params.H0
-    Iu_i = params.Iu_i
-    Iu_f = params.Iu_f
-    Iv_i = params.Iv_i
-    Iv_f = params.Iv_f
-    Ih_i = params.Ih_i
-    Ih_f = params.Ih_f
+    Iu_i = inds.Iu_i
+    Iu_f = inds.Iu_f
+    Iv_i = inds.Iv_i
+    Iv_f = inds.Iv_f
+    Ih_i = inds.Ih_i
+    Ih_f = inds.Ih_f
 
     # Turn off nonlinear terms
     h = H0 + uvh[Ih_i:Ih_f]
@@ -83,7 +84,7 @@ def flux_sw_ener(uvh, params):
     return flux, energy, enstrophy
 
 
-def flux_sw_enst(uvh, params):
+def flux_sw_enst(uvh, params, inds):
 
     # Define parameters
     dx = params.dx
@@ -91,12 +92,12 @@ def flux_sw_enst(uvh, params):
     gp = params.gp
     f0 = params.f0
     H0 = params.H0
-    Iu_i = params.Iu_i
-    Iu_f = params.Iu_f
-    Iv_i = params.Iv_i
-    Iv_f = params.Iv_f
-    Ih_i = params.Ih_i
-    Ih_f = params.Ih_f
+    Iu_i = inds.Iu_i
+    Iu_f = inds.Iu_f
+    Iv_i = inds.Iv_i
+    Iv_f = inds.Iv_f
+    Ih_i = inds.Ih_i
+    Ih_f = inds.Ih_f
 
     h = H0 + uvh[Ih_i:Ih_f]
     U = axp(h)*uvh[Iu_i:Iu_f, :]
@@ -118,7 +119,7 @@ def flux_sw_enst(uvh, params):
     return flux, energy, enstrophy
 
 
-def flux_sw_ener_F(uvh, params):
+def flux_sw_ener_Fcomp(uvh, params, inds):
 
     # Define parameters
     dx = params.dx
@@ -126,43 +127,27 @@ def flux_sw_ener_F(uvh, params):
     gp = params.gp
     f0 = params.f0
     H0 = params.H0
-    Iu_i = params.Iu_i
-    Iu_f = params.Iu_f
-    Iv_i = params.Iv_i
-    Iv_f = params.Iv_f
-    Ih_i = params.Ih_i
-    Ih_f = params.Ih_f
+    Iu_i = inds.Iu_i
+    Iu_f = inds.Iu_f
+    Iv_i = inds.Iv_i
+    Iv_f = inds.Iv_f
+    Ih_i = inds.Ih_i
+    Ih_f = inds.Ih_f
 
     # Turn off nonlinear terms
-    # h = H0 + uvh[Ih_i:Ih_f]
     h = calc_h(uvh, H0, Ih_i)
-    # U = axp(h)*uvh[Iu_i:Iu_f, :]
     U = calc_u(uvh, h)
-    # V = ayp(h)*uvh[Iv_i:Iv_f, :]
     V = calc_v(uvh, h, Iv_i, Iv_f)
-    # B = gp*h + 0.5*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2))
     B = calc_b(uvh, h, gp, Iv_i, Iv_f)
-    # q = (dxp(uvh[Iv_i:Iv_f, :], dx) - dyp(uvh[Iu_i:Iu_f, :], dy) + f0)/ayp(axp(h))
     q = calc_q(uvh, h, dx, dy, f0, Iv_i, Iv_f)
 
     # Compute fluxes
-    # flux = np.vstack([aym(q*axp(V)) - dxp(B, dx),
-    #                  -axm(q*ayp(U)) - dyp(B, dy),
-    #                  -dxm(U, dx) - dym(V, dy)])
-    # flux = np.vstack([calc_flux_1(q, V, B, dx),
-    #                   -axm(q*ayp(U)) - dyp(B, dy),
-    #                   -dxm(U, dx) - dym(V, dy)])
-    # flux = np.vstack([calc_flux_1(q, V, B, dx),
-    #                   calc_flux_2(q, U, B, dy),
-    #                   -dxm(U, dx) - dym(V, dy)])
     flux = np.vstack([calc_flux_1(q, V, B, dx),
                       calc_flux_2(q, U, B, dy),
                       calc_flux_3(U, V, dx, dy)])
 
     # compute energy and enstrophy
-    # energy = 0.5*np.mean(gp*h**2 + h*(axm(uvh[Iu_i:Iu_f, :]**2) + aym(uvh[Iv_i:Iv_f, :]**2)))
     energy = calc_energy(uvh, h, gp, Iv_i, Iv_f)
-    # enstrophy = 0.5*np.mean(ayp(axp(h))*q**2)
     enstrophy = calc_enstrophy(h, q)
 
     return flux, energy, enstrophy
@@ -279,7 +264,7 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, Ny, n):
         return None
 
 
-class wavenum(object):
+class Params(object):
     """
     A placeholder for the parameters of the solution.
 
@@ -306,6 +291,31 @@ class wavenum(object):
 
     Attributes
     ----------
+    All parameters are also defined as attributes with the same name.
+    """
+    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny):
+        super(Params, self).__init__()
+        self.dx   = dx
+        self.dy   = dy
+        self.f0   = f0
+        self.beta = beta
+        self.gp   = gp
+        self.H0   = H0
+        self.Nx   = Nx
+        self.Ny   = Ny
+
+
+class Inds(object):
+    """
+    A placeholder for the indices of the solution matrix.
+
+    Parameters
+    ----------
+    Ny : int
+        The number of y points.
+
+    Attributes
+    ----------
     Iu_i : int
         The row number that the matrix of u values begins at.
     Iu_f : int
@@ -321,19 +331,9 @@ class wavenum(object):
     Ih_f : int
         The row number that the matrix of h values end at, plus one for the
         sake of indexing.
-
-    All parameters are also defined as attributes with the same name.
     """
-    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny):
-        super(wavenum, self).__init__()
-        self.dx   = dx
-        self.dy   = dy
-        self.f0   = f0
-        self.beta = beta
-        self.gp   = gp
-        self.H0   = H0
-        self.Nx   = Nx
-        self.Ny   = Ny
+    def __init__(self, Ny):
+        super(Inds, self).__init__()
         self.Iu_i = 0    # first row of u
         self.Iu_f = Ny   # last row of u; not inclusive!
         self.Iv_i = Ny   # first row of v...
