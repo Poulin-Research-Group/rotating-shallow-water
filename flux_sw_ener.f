@@ -54,40 +54,40 @@ c     calculating first term of flux array ==========================
       do c=1,Nx-1
         do r=2,Ny
           flux(r,c) = (q(r-1,c) * (V(r-1,c+1) + V(r-1,c)) 
-     &                +  q(r,c)   * (V(r,c+1)   + V(r,c)))*0.25 
-     &                - (B(r,c+1) - B(r,c)) / dx
+     &              +  q(r,c)   * (V(r,c+1)   + V(r,c)))*0.25 
+     &              - (B(r,c+1) - B(r,c)) / dx
         enddo
 
 c       first row, all columns (except last)
         flux(1,c) = (q(Ny,c) * (V(Ny,c+1) + V(Ny,c))
-     &              +  q(1,c)  * (V(1,c+1)  + V(1,c)))*0.25
-     &              - (B(1,c+1) - B(1,c)) / dx
+     &            +  q(1,c)  * (V(1,c+1)  + V(1,c)))*0.25
+     &            - (B(1,c+1) - B(1,c)) / dx
 
       enddo
 
 c     last column, all rows (except first)
       do r=2,Ny 
         flux(r,Nx) = (q(r-1,Nx) * (V(r-1,1) + V(r-1,Nx)) 
-     &               +  q(r,Nx)   * (V(r,1)   + V(r,Nx)))*0.25
-     &               - (B(r,1) - B(r,Nx)) / dx
+     &             +  q(r,Nx)   * (V(r,1)   + V(r,Nx)))*0.25
+     &             - (B(r,1) - B(r,Nx)) / dx
       enddo
 
 c     first row, last column
       flux(1,Nx) = (q(Ny,Nx) * (V(Ny,1) + V(Ny,Nx))
-     &             +  q(1,Nx)  * (V(1,1)  + V(1,Nx)))*0.25
-     &             - (B(1,1) - B(1,Nx)) / dx
+     &           +  q(1,Nx)  * (V(1,1)  + V(1,Nx)))*0.25
+     &           - (B(1,1) - B(1,Nx)) / dx
 
 
 c     calculating second term of flux array =========================
       do c=2,Nx
         do r=1,Ny-1
           flux(Ny+r,c) = -(q(r,c-1) * (U(r+1,c-1) + U(r,c-1))
-     &                    +   q(r,c)   * (U(r+1,c)   + U(r,c)))*0.25 
-     &                    -  (B(r+1,c) - B(r,c)) / dy
+     &                +   q(r,c)   * (U(r+1,c)   + U(r,c)))*0.25 
+     &                -  (B(r+1,c) - B(r,c)) / dy
         enddo
 
 c       last row, all columns (except first)
-        flux(2*Ny,c) = -(q(Ny,c-1) * (U(1,c-1) + U(Ny,c-1))
+        flux(Ny2,c) = -(q(Ny,c-1) * (U(1,c-1) + U(Ny,c-1))
      &               +   q(Ny,c)   * (U(1,c)   + U(Ny,c)))*0.25
      &               -  (B(1,c) - B(Ny,c)) / dy
 
@@ -96,14 +96,14 @@ c       last row, all columns (except first)
 c     first column, all rows (except last)
       do r=1,Ny-1
         flux(Ny+r,1) = -(q(r,Nx) * (U(r+1,Nx) + U(r,Nx))
-     &               +   q(r,1)  * (U(r+1,1)  + U(r,1)))*0.25
-     &               -  (B(r+1,1) - B(r,1)) / dy
+     &              +   q(r,1)  * (U(r+1,1)  + U(r,1)))*0.25
+     &              -  (B(r+1,1) - B(r,1)) / dy
       enddo
 
-c     first row, last column
-      flux(Ny+1,Nx) = -(q(1,1)  * (U(Ny,1)  + U(1,1)) 
-     &              +   q(1,Nx) * (U(Ny,Nx) + U(1,Nx)))*0.25
-     &              -  (B(Ny,1) - B(1,Nx)) / dy
+c     last row, first column
+      flux(Ny2,1) = -(q(Ny,Nx) * (U(1,Nx)  + U(Ny,Nx)) 
+     &              +  q(Ny,1)  * (U(1,1)   + U(Ny,1)))*0.25
+     &              - (B(1,1) - B(Ny,1)) / dy
 
 
 
@@ -236,7 +236,7 @@ cf2py intent(in) :: Nx, Ny
       enddo
 
       B(1, 1) = gp*h(1, 1)
-     &        + 0.25*(uvh(1, 1)**2 + uvh(1, Nx)**2)
+     &        + 0.25*(uvh(1, 1)**2      + uvh(1, Nx)**2)
      &        + 0.25*(uvh(Iv_i+1, 1)**2 + uvh(Iv_f, 1)**2)
 
       end

@@ -231,10 +231,10 @@ c     first column, all rows (except last)
      &              -  (B(r+1,1) - B(r,1)) / dy
       enddo
 
-c     first row, last column
-      flux_2(1,Nx) = -(q(1,1)  * (U(Ny,1)  + U(1,1)) 
-     &             +   q(1,Nx) * (U(Ny,Nx) + U(1,Nx)))*0.25
-     &             -  (B(Ny,1) - B(1,Nx)) / dy
+c     last row, first column
+      flux_2(Ny,1) = -(q(Ny,Nx) * (U(1,Nx)  + U(Ny,Nx)) 
+     &              +  q(Ny,1)  * (U(1,1)   + U(Ny,1)))*0.25
+     &              - (B(1,1) - B(Ny,1)) / dy
 
       end
 

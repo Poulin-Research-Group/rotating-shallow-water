@@ -118,6 +118,7 @@ def main(method, sc):
 
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params, inds)
+
     uvh  = uvh + dt*NLnm
     # UVH[:, :, 1] = uvh
 
@@ -146,12 +147,12 @@ def main(method, sc):
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
 
     """
-    fig, axarr = plt.subplots(2, sharex=True)
+    fig, axarr = plt.subplots(2, sharex=False)
     ax1 = plt.subplot(2, 1, 1)
     ax2 = plt.subplot(2, 1, 2)
-    ax1.plot((energy-energy[0])/energy[0], '-ob', linewidth=2, label='Energy')
+    ax1.plot((energy[:-1]-energy[0])/energy[0], '-ob', linewidth=2, label='Energy')
     ax1.set_title('Energy')
-    ax2.plot((enstr-enstr[0])/enstr[0], '-or',  linewidth=2, label='Enstrophy')
+    ax2.plot((enstr[:-1]-enstr[0])/enstr[0], '-or',  linewidth=2, label='Enstrophy')
     ax2.set_title('Enstrophy')
     plt.show()
     """
