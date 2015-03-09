@@ -82,28 +82,28 @@ c     calculating second term of flux array =========================
       do c=2,Nx
         do r=1,Ny-1
           flux(Ny+r,c) = -(q(r,c-1) * (U(r+1,c-1) + U(r,c-1))
-     &                +   q(r,c)   * (U(r+1,c)   + U(r,c)))*0.25 
-     &                -  (B(r+1,c) - B(r,c)) / dy
+     &                 +   q(r,c)   * (U(r+1,c)   + U(r,c)))*0.25 
+     &                 -  (B(r+1,c) - B(r,c)) / dy
         enddo
 
 c       last row, all columns (except first)
         flux(Ny2,c) = -(q(Ny,c-1) * (U(1,c-1) + U(Ny,c-1))
-     &               +   q(Ny,c)   * (U(1,c)   + U(Ny,c)))*0.25
-     &               -  (B(1,c) - B(Ny,c)) / dy
+     &              +   q(Ny,c)   * (U(1,c)   + U(Ny,c)))*0.25
+     &              -  (B(1,c) - B(Ny,c)) / dy
 
       enddo
 
 c     first column, all rows (except last)
       do r=1,Ny-1
         flux(Ny+r,1) = -(q(r,Nx) * (U(r+1,Nx) + U(r,Nx))
-     &              +   q(r,1)  * (U(r+1,1)  + U(r,1)))*0.25
-     &              -  (B(r+1,1) - B(r,1)) / dy
+     &               +   q(r,1)  * (U(r+1,1)  + U(r,1)))*0.25
+     &               -  (B(r+1,1) - B(r,1)) / dy
       enddo
 
 c     last row, first column
       flux(Ny2,1) = -(q(Ny,Nx) * (U(1,Nx)  + U(Ny,Nx)) 
-     &              +  q(Ny,1)  * (U(1,1)   + U(Ny,1)))*0.25
-     &              - (B(1,1) - B(Ny,1)) / dy
+     &            +   q(Ny,1)  * (U(1,1)   + U(Ny,1)))*0.25
+     &            -  (B(1,1) - B(Ny,1)) / dy
 
 
 

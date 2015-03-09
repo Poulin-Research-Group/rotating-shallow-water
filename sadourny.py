@@ -55,10 +55,11 @@
 
 
 from sadourny_setup import flux_sw_ener, flux_sw_enst, Params, np, plt, animation, sys, \
-                           time, PLOTTO_649, flux_sw_ener_Fcomp, flux_ener_f, Inds
+                           time, PLOTTO_649, flux_sw_ener_Fcomp, flux_ener_f, Inds, \
+                           euler, ab2, ab3, euler_f, ab2_f, ab3_f
 
 
-def main(method, sc):
+def main(method, Euler, AB2, AB3, sc):
 
     # Number of grid points
     # sc  = 1
@@ -118,20 +119,19 @@ def main(method, sc):
 
     # Euler step
     NLnm, energy[0], enstr[0] = method(uvh, params, inds)
-
-    uvh  = uvh + dt*NLnm
+    uvh = Euler(uvh, dt, NLnm)
     # UVH[:, :, 1] = uvh
 
     # AB2 step
     NLn, energy[1], enstr[1] = method(uvh, params, inds)
-    uvh  = uvh + 0.5*dt*(3*NLn - NLnm)
+    uvh = AB2(uvh, dt, NLn, NLnm)
     # UVH[:, :, 2] = uvh
 
     # loop through time
     for n in range(3, N):
         # AB3 step
         NL, energy[n-1], enstr[n-1] = method(uvh, params, inds)
-        uvh = uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
+        uvh = AB3(uvh, dt, NL, NLn, NLnm)
         # UVH[:, :, n] = uvh
 
         # Reset fluxes
@@ -157,4 +157,4 @@ def main(method, sc):
     plt.show()
     """
 
-main(flux_ener_f, 3)
+main(flux_ener_f, euler_f, ab2_f, ab3_f, 3)

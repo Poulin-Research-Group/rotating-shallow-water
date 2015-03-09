@@ -7,6 +7,7 @@ from mpi4py import MPI
 from flux_ener_components import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, \
                                  calc_flux_2, calc_flux_3, calc_energy, calc_enstrophy
 from flux_sw_ener import flux_ener_f
+from time_steppers import euler_f, ab2_f, ab3_f
 comm = MPI.COMM_WORLD
 
 
@@ -48,6 +49,29 @@ def axm(f):
 def aym(f):
     afy = 0.5*(f + np.roll(f, 1, 0))
     return afy
+
+
+def euler(uvh, dt, NLnm):
+    """
+    Updates the solution, uvh, using an Euler time stepping method.
+    """
+    return uvh + dt*NLnm
+
+
+def ab2(uvh, dt, NLn, NLnm):
+    """
+    Updates the solution, uvh, using a second order Adams-Bashforth time
+    stepping method.
+    """
+    return uvh + 0.5*dt*(3*NLn - NLnm)
+
+
+def ab3(uvh, dt, NL, NLn, NLnm):
+    """
+    Updates the solution, uvh, using a third order Adams-Bashforth time
+    stepping method.
+    """
+    return uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
 
 
 def flux_sw_ener(uvh, params, inds):
@@ -156,9 +180,9 @@ def flux_sw_ener_Fcomp(uvh, params, inds):
 def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     """
     Given a process' slice of the solution (uvh), the second column is
-    communicated to the left process and the second-last column is
-    communicated to the right process, placing them in the appropriate columns
-    (the "ghost columns").
+    communicated to the left process and the second-last column is communicated
+    to the right process, placing them in the appropriate columns (the "ghost
+    columns").
 
     Note: process 0 is to the right of process (p-1) due to the periodic grid.
 
