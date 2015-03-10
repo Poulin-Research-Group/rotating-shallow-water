@@ -34,7 +34,7 @@ cf2py intent(hide) :: Nx, Ny3
 
       do r=1,Ny3
         do c=1,Nx
-          uvh(r,c) = uvh(r,c) + 0.5*dt*(3*NLn(r,c) - NLnm(r,c))
+          uvh(r,c) = uvh(r,c) + 0.5*dt*(3.0*NLn(r,c) - NLnm(r,c))
         enddo
       enddo
 

@@ -6,8 +6,7 @@ import time
 from mpi4py import MPI
 from flux_ener_components import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, \
                                  calc_flux_2, calc_flux_3, calc_energy, calc_enstrophy
-from flux_sw_ener import flux_ener_f
-from time_steppers import euler_f, ab2_f, ab3_f
+from flux_sw_ener import euler_f as ener_Euler_f, ab2_f as ener_AB2_f, ab3_f as ener_AB3_f
 comm = MPI.COMM_WORLD
 
 
@@ -177,6 +176,24 @@ def flux_sw_ener_Fcomp(uvh, params, inds):
     return flux, energy, enstrophy
 
 
+def ener_Euler(uvh, params, inds):
+    NLnm, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = euler(uvh, params.dt, NLnm)
+    return uvh, NLnm, energy, enstr
+
+
+def ener_AB2(uvh, NLnm, params, inds):
+    NLn, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = ab2(uvh, params.dt, NLn, NLnm)
+    return uvh, NLn, energy, enstr
+
+
+def ener_AB3(uvh, NLn, NLnm, params, inds):
+    NL, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = ab3(uvh, params.dt, NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+
+
 def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     """
     Given a process' slice of the solution (uvh), the second column is
@@ -317,7 +334,7 @@ class Params(object):
     ----------
     All parameters are also defined as attributes with the same name.
     """
-    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny):
+    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny, dt):
         super(Params, self).__init__()
         self.dx   = dx
         self.dy   = dy
@@ -327,6 +344,7 @@ class Params(object):
         self.H0   = H0
         self.Nx   = Nx
         self.Ny   = Ny
+        self.dt   = dt
 
 
 class Inds(object):

@@ -1,14 +1,78 @@
+c     calculate the flux and update the solution using euler step      
+      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params,inds)
+      implicit none
+      integer Nx, Ny
+      double precision uvh(3*Ny,Nx), ener, enst
+      double precision NLnm(3*Ny,Nx)
+      double precision params(6), dt
+      integer inds(3)
+
+      dt = params(6)
+
+cf2py intent(in) :: uvh, params, inds
+cf2py intent(hide) :: Nx, Ny
+cf2py intent(out) :: NLnm, ener, enst, uvh
+
+      call flux_ener_F(uvh, NLnm, ener, enst, Nx,Ny,params,inds)
+      call Euler(uvh, dt, NLnm, Nx, Ny)
+
+      end
+
+
+c     calculate the flux and update the solution using AB2 step      
+      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params,inds)
+      implicit none
+      integer Nx, Ny
+      double precision uvh(3*Ny,Nx), ener, enst
+      double precision NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
+      double precision params(6), dt
+      integer inds(3)
+
+      dt = params(6)
+
+cf2py intent(in) :: uvh, NLnm, params, inds
+cf2py intent(hide) :: Nx, Ny
+cf2py intent(out) :: NLn, ener, enst, uvh
+
+      call flux_ener_F(uvh, NLn, ener, enst, Nx,Ny,params,inds)
+      call AB2(uvh, dt, NLn, NLnm, Nx, Ny)
+
+      end
+
+
+c     calculate the flux and update the solution using AB3 step      
+      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params,inds)
+      implicit none
+      integer Nx, Ny
+      double precision uvh(3*Ny,Nx), ener, enst
+      double precision NL(3*Ny,Nx), NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
+      double precision params(6), dt
+      integer inds(3)
+
+      dt = params(6)
+
+cf2py intent(in) :: uvh, NLn,NLnm, params, inds
+cf2py intent(hide) :: Nx, Ny
+cf2py intent(out) :: NL, ener, enst, uvh
+
+      call flux_ener_F(uvh, NL, ener, enst, Nx,Ny,params,inds)
+      call AB3(uvh, dt, NL, NLn, NLnm, Nx, Ny)
+
+      end
+
+
+c     calculate h, U, V, B, q --> flux, energy, enstrophy.
       subroutine flux_ener_F(uvh, flux, ener, enst, Nx,Ny,params,inds)
       implicit none
       integer Nx, Ny
       double precision uvh(3*Ny,Nx)
       double precision flux(3*Ny,Nx), ener, enst
 
-      double precision params(5), dx, dy, gp, f0, H0
+      double precision params(6), dx, dy, gp, f0, H0
       double precision h(Ny,Nx), U(Ny,Nx), V(Ny,Nx), B(Ny,Nx), q(Ny,Nx)
       integer inds(3), Iv_i, Iv_f, Ih_i
 
-cf2py intent(in) :: uvh, params
+cf2py intent(in) :: uvh, params, inds
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: flux, ener, enst
 
@@ -49,7 +113,6 @@ c     calculating the flux terms themselves ===================================
 cf2py intent(in) :: q, U, V, B, dx, dy
 cf2py intent(in) :: Nx, Ny
 
-
 c     calculating first term of flux array ==========================
       do c=1,Nx-1
         do r=2,Ny
@@ -77,7 +140,6 @@ c     first row, last column
      &           +  q(1,Nx)  * (V(1,1)  + V(1,Nx)))*0.25
      &           - (B(1,1) - B(1,Nx)) / dx
 
-
 c     calculating second term of flux array =========================
       do c=2,Nx
         do r=1,Ny-1
@@ -104,7 +166,6 @@ c     last row, first column
       flux(Ny2,1) = -(q(Ny,Nx) * (U(1,Nx)  + U(Ny,Nx)) 
      &            +   q(Ny,1)  * (U(1,1)   + U(Ny,1)))*0.25
      &            -  (B(1,1) - B(Ny,1)) / dy
-
 
 
 c     calculating third term of flux array ==========================
@@ -360,5 +421,73 @@ c     last row and column
      &          * (h(1,1) + h(1,Nx) + h(Ny,1) + h(Ny,Nx))
 
       enstrophy = 0.125 * enstrophy / (Nx*Ny)
+
+      end
+
+
+
+
+c     TIME STEPPING METHODS ===================================================
+      subroutine Euler(uvh, dt, NLnm, Nx, Ny)
+      implicit none
+
+      double precision uvh(3*Ny,Nx), NLnm(3*Ny,Nx)
+      double precision dt
+      integer Nx, Ny
+      integer r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NLnm
+cf2py intent(hide) :: Nx, Ny
+
+      do r=1,3*Ny
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + dt*NLnm(r,c)
+        enddo
+      enddo
+
+      end
+
+
+      subroutine AB2(uvh, dt, NLn, NLnm, Nx, Ny)
+      implicit none
+
+      double precision uvh(3*Ny,Nx), NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
+      double precision dt
+      integer Nx, Ny
+      integer r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NLn, NLnm
+cf2py intent(hide) :: Nx, Ny
+
+      do r=1,3*Ny
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + 0.5*dt*(3.0*NLn(r,c) - NLnm(r,c))
+        enddo
+      enddo
+
+      end
+
+
+      subroutine AB3(uvh, dt, NL, NLn, NLnm, Nx, Ny)
+      implicit none
+
+      double precision uvh(3*Ny,Nx), NL(3*Ny,Nx)
+      double precision NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
+      double precision dt
+      integer Nx, Ny
+      integer r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NL, NLn, NLnm
+cf2py intent(hide) :: Nx, Ny
+
+      do r=1,3*Ny
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + dt/12.0*(23.0*NL(r,c) - 16.0*NLn(r,c)
+     &                                   + 5.0*NLnm(r,c))
+        enddo
+      enddo
 
       end

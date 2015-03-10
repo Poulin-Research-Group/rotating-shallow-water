@@ -55,11 +55,11 @@
 
 
 from sadourny_setup import flux_sw_ener, flux_sw_enst, Params, np, plt, animation, sys, \
-                           time, PLOTTO_649, flux_sw_ener_Fcomp, flux_ener_f, Inds, \
-                           euler, ab2, ab3, euler_f, ab2_f, ab3_f
+                           time, PLOTTO_649, flux_sw_ener_Fcomp, Inds, ener_Euler, \
+                           ener_AB2, ener_AB3, ener_Euler_f, ener_AB2_f, ener_AB3_f
 
 
-def main(method, Euler, AB2, AB3, sc):
+def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
 
     # Number of grid points
     # sc  = 1
@@ -96,10 +96,10 @@ def main(method, Euler, AB2, AB3, sc):
     xv, yv = np.meshgrid(x,  ys)
 
     # Modify class
-    params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny)
+    params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny, dt)
     inds   = Inds(Ny)
-    if method is flux_ener_f:
-        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0])
+    if Flux_Euler is ener_Euler_f:
+        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
         inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
 
     # Initial Conditions with plot: u, v, h
@@ -118,27 +118,24 @@ def main(method, Euler, AB2, AB3, sc):
     t_start = time.time()
 
     # Euler step
-    NLnm, energy[0], enstr[0] = method(uvh, params, inds)
-    uvh = Euler(uvh, dt, NLnm)
+    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, inds)
     # UVH[:, :, 1] = uvh
 
     # AB2 step
-    NLn, energy[1], enstr[1] = method(uvh, params, inds)
-    uvh = AB2(uvh, dt, NLn, NLnm)
+    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, inds)
     # UVH[:, :, 2] = uvh
 
     # loop through time
     for n in range(3, N):
         # AB3 step
-        NL, energy[n-1], enstr[n-1] = method(uvh, params, inds)
-        uvh = AB3(uvh, dt, NL, NLn, NLnm)
+        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, inds)
         # UVH[:, :, n] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
     t_final = time.time()
-    print t_final - t_start
+    t_total = t_final - t_start
 
     # PLOTTING ==========================================================================
     # PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny-flux_ener_sw.mp4')
@@ -157,4 +154,12 @@ def main(method, Euler, AB2, AB3, sc):
     plt.show()
     """
 
-main(flux_ener_f, euler_f, ab2_f, ab3_f, 3)
+    print t_total
+    return t_total
+
+
+print 'pure numpy'
+main(ener_Euler, ener_AB2, ener_AB3, 1)
+
+print '\npure fortran'
+main(ener_Euler_f, ener_AB2_f, ener_AB3_f, 1)
