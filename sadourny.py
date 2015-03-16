@@ -62,7 +62,6 @@ from sadourny_setup import flux_sw_ener, flux_sw_enst, Params, np, plt, animatio
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
 
     # Number of grid points
-    # sc  = 1
     Nx, Ny  = 128*sc, 128*sc
 
     # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
@@ -70,14 +69,14 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     Lx, Ly  = 200e3, 200e3
 
     # x conditions
-    dx = Lx/Nx
     x0, xf = -Lx/2, Lx/2
+    dx = Lx/Nx
     x  = np.linspace(x0, xf-dx, Nx)
     xs = np.linspace(x0+dx/2, xf-dx/2, Nx)
 
     # y conditions
-    dy = Ly/Ny
     y0, yf = -Ly/2, Ly/2
+    dy = Ly/Ny
     y  = np.linspace(y0, yf-dy, Ny)
     ys = np.linspace(y0+dy/2, yf-dy/2, Ny)
 
@@ -85,8 +84,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     f0, beta, gp, H0  = 1.e-4, 0e-11, 9.81, 500.
 
     # Temporal Parameters
-    dt = 5./sc
     t0, tf = 0.0, 3600.0
+    dt = 5./sc
     N  = int((tf - t0)/dt)
 
     # Define Grid (staggered grid)
@@ -110,7 +109,6 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
 
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(N), np.zeros(N)
-
     # UVH = np.empty((3*Ny, Nx, N), dtype='d')
     # UVH[:, :, 0] = uvh
 
@@ -120,7 +118,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     # Euler step
     uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, inds)
     # UVH[:, :, 1] = uvh
-
+    
     # AB2 step
     uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, inds)
     # UVH[:, :, 2] = uvh

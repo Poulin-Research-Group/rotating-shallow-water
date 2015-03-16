@@ -1,11 +1,72 @@
-      subroutine flux_ener(uvh,flux,menerg,menstr,Nx,pfort)
+c     calculate the flux and update the solution using euler step      
+      subroutine euler_F(uvh, NLnm, ener, enst, Nx,params)
+      implicit none
+      integer Nx
+      double precision uvh(3,Nx), ener, enst
+      double precision NLnm(3,Nx)
+      double precision params(5), dt
+
+      dt = params(5)
+
+cf2py intent(in) :: uvh, params
+cf2py intent(hide) :: Nx
+cf2py intent(out) :: NLnm, ener, enst, uvh
+
+      call flux_ener_F(uvh, NLnm, ener, enst, Nx,params)
+      call Euler(uvh, dt, NLnm, Nx)
+
+      end
+
+
+c     calculate the flux and update the solution using AB2 step      
+      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,params)
+      implicit none
+      integer Nx
+      double precision uvh(3,Nx), ener, enst
+      double precision NLn(3,Nx), NLnm(3,Nx)
+      double precision params(5), dt
+
+      dt = params(5)
+
+cf2py intent(in) :: uvh, NLnm, params
+cf2py intent(hide) :: Nx
+cf2py intent(out) :: NLn, ener, enst, uvh
+
+      call flux_ener_F(uvh, NLn, ener, enst, Nx,params)
+      call AB2(uvh, dt, NLn, NLnm, Nx)
+
+      end
+
+
+c     calculate the flux and update the solution using AB3 step      
+      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,params)
+      implicit none
+      integer Nx
+      double precision uvh(3,Nx), ener, enst
+      double precision NL(3,Nx), NLn(3,Nx), NLnm(3,Nx)
+      double precision params(5), dt
+
+      dt = params(5)
+
+cf2py intent(in) :: uvh, NLn,NLnm, params
+cf2py intent(hide) :: Nx
+cf2py intent(out) :: NL, ener, enst, uvh
+
+      call flux_ener_F(uvh, NL, ener, enst, Nx,params)
+      call AB3(uvh, dt, NL, NLn, NLnm, Nx)
+
+      end
+
+
+c     calculating the flux ====================================================
+      subroutine flux_ener(uvh,flux,menerg,menstr,Nx,params)
 
 c     FJP: add energy, enstrophy and remove flux from call line
 c     FJP: first test to see if this works!
       implicit none
       integer Nx,j
       double precision uvh(3,Nx), flux(3,Nx)
-      double precision pfort(4)
+      double precision params(4)
 
       double precision dx, gp, f0, H0
       double precision h(Nx), U(Nx), V(Nx), B(Nx), q(Nx)
@@ -20,10 +81,10 @@ cf2py intent(out) :: menerg
 cf2py intent(out) :: menstr
 
 c     import parameters
-      dx = pfort(1)
-      gp = pfort(2)
-      f0 = pfort(3)
-      H0 = pfort(4)
+      dx = params(1)
+      gp = params(2)
+      f0 = params(3)
+      H0 = params(4)
 
 c     compute height and meridonal mass flux: h, V
       DO j=1,Nx
@@ -90,3 +151,65 @@ c     compute mean
       
       end
       
+
+c     TIME STEPPING METHODS ===================================================
+      subroutine Euler(uvh, dt, NLnm, Nx)
+      implicit none
+
+      double precision uvh(3,Nx), NLnm(3,Nx)
+      double precision dt
+      integer Nx, r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NLnm
+cf2py intent(hide) :: Nx
+
+      do r=1,3
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + dt*NLnm(r,c)
+        enddo
+      enddo
+
+      end
+
+
+      subroutine AB2(uvh, dt, NLn, NLnm, Nx)
+      implicit none
+
+      double precision uvh(3,Nx), NLn(3,Nx), NLnm(3,Nx)
+      double precision dt
+      integer Nx, r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NLn, NLnm
+cf2py intent(hide) :: Nx
+
+      do r=1,3
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + 0.5*dt*(3.0*NLn(r,c) - NLnm(r,c))
+        enddo
+      enddo
+
+      end
+
+
+      subroutine AB3(uvh, dt, NL, NLn, NLnm, Nx)
+      implicit none
+
+      double precision uvh(3,Nx), NL(3,Nx)
+      double precision NLn(3,Nx), NLnm(3,Nx)
+      double precision dt
+      integer Nx, r, c
+
+cf2py intent(in,out) :: uvh
+cf2py intent(in) :: dt, NL, NLn, NLnm
+cf2py intent(hide) :: Nx
+
+      do r=1,3
+        do c=1,Nx
+          uvh(r,c) = uvh(r,c) + dt/12.0*(23.0*NL(r,c) - 16.0*NLn(r,c)
+     &                                   + 5.0*NLnm(r,c))
+        enddo
+      enddo
+
+      end

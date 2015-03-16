@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 import sys
 import time
 from mpi4py import MPI
-from flux_ener import flux_ener as flux_ener_F
+from flux_ener import euler_f as ener_Euler_f, ab2_f as ener_AB2_f, ab3_f as ener_AB3_f
 comm = MPI.COMM_WORLD
 
 
@@ -34,8 +34,22 @@ def axm(f):
     return afx
 
 
-# Define flux for Sadourny's energy conserving scheme
+def euler(uvh, dt, NLnm):
+    # euler stepper
+    return uvh + dt*NLnm
 
+
+def ab2(uvh, dt, NLn, NLnm):
+    # ab2 stepper
+    return uvh + 0.5*dt*(3*NLn - NLnm)
+
+
+def ab3(uvh, dt, NL, NLn, NLnm):
+    # ab3 stepper
+    return uvh + dt/12*(23*NL - 16*NLn + 5*NLnm)
+
+
+# Define flux for Sadourny's energy conserving scheme
 def flux_sw_ener(uvh, parms):
 
     # Define parameters
@@ -86,15 +100,34 @@ def flux_sw_enst(uvh, parms):
     return flux, energy, enstrophy
 
 
+def ener_Euler(uvh, params, inds):
+    NLnm, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = euler(uvh, params.dt, NLnm)
+    return uvh, NLnm, energy, enstr
+
+
+def ener_AB2(uvh, NLnm, params, inds):
+    NLn, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = ab2(uvh, params.dt, NLn, NLnm)
+    return uvh, NLn, energy, enstr
+
+
+def ener_AB3(uvh, NLn, NLnm, params, inds):
+    NL, energy, enstr = flux_sw_ener(uvh, params, inds)
+    uvh = ab3(uvh, params.dt, NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+
+
 class wavenum(object):
     """
     See the 2D sadourny setup for the documentation.
     """
-    def __init__(self, dx, f0, beta, gp, H0, Mx):
+    def __init__(self, dx, f0, beta, gp, H0, Nx, dt):
         super(wavenum, self).__init__()
         self.dx   = dx
         self.f0   = f0
         self.beta = beta
         self.gp   = gp
         self.H0   = H0
-        self.Mx   = Mx
+        self.Nx   = Nx
+        self.dt   = dt
