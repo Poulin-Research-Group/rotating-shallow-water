@@ -118,7 +118,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     # Euler step
     uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, inds)
     # UVH[:, :, 1] = uvh
-    
+
     # AB2 step
     uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, inds)
     # UVH[:, :, 2] = uvh
