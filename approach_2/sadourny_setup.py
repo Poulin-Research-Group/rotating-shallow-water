@@ -8,6 +8,48 @@ from flux_sw_ener import euler_f as ener_Euler_f, ab2_f as ener_AB2_f, ab3_f as 
 comm = MPI.COMM_WORLD
 
 
+def I(A):
+    # index A normally...
+    return A[1:-1, 1:-1]
+
+
+def I_XP(A):
+    # index A with x being pushed in positive direction (+1)
+    return A[1:-1, 2:]
+
+
+def I_XN(A):
+    # index A with x being pushed in negative direction (-1)
+    return A[1:-1, 0:-2]
+
+
+def I_YP(A):
+    return A[2:, 1:-1]
+
+
+def I_YN(A):
+    return A[0:-2, 1:-1]
+
+
+def I_XP_YP(A):
+    # index A with x,y being pushed in pos. dir.
+    return A[2:, 2:]
+
+
+def I_XP_YN(A):
+    # index A with x pushed in pos, y pushed in neg.
+    return A[0:-2, 2:]
+
+
+def I_XN_YP(A):
+    # index A with x pushed in neg, y pushed in pos
+    return A[2:, 0:-2]
+
+
+def I_XN_YN(A):
+    return A[0:-2, 0:-2]
+
+
 def periodic(f, params):
     # Nx = params.Nx
     # Ny = params.Ny
@@ -76,10 +118,11 @@ def flux_sw_ener(uvh, params):
     flux = np.zeros((3,Ny,Nx),float)
     
     # Compute U, V, B, q
-    U[1:-1,1:-1] = 0.5*(h[1:-1,1:-1]+h[1:-1,2:])*u[1:-1,1:-1]   
-    V[1:-1,1:-1] = 0.5*(h[1:-1,1:-1]+h[2:,1:-1])*v[1:-1,1:-1]
-    B[1:-1,1:-1] = gp*h[1:-1,1:-1] + 0.25*(u[1:-1,1:-1]**2 + u[1:-1,0:-2]**2 + v[1:-1,1:-1]**2 + v[0:-2,1:-1]**2)
-    q[1:-1,1:-1] = 4*((v[1:-1,2:]-v[1:-1,1:-1])/dx - (u[2:,1:-1]-u[1:-1,1:-1])/dy + f0)/(h[1:-1,1:-1]+h[2:,1:-1]+h[1:-1,2:]+h[2:,2:])
+    U[1:-1, 1:-1] = 0.5*(I(h) + I_XP(h)) * I(u)   
+    V[1:-1, 1:-1] = 0.5*(I(h) + I_YP(h)) * I(v)
+    B[1:-1, 1:-1] = gp*I(h) + 0.25* (I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2)
+    q[1:-1, 1:-1] = 4*((I_XP(v) - I(v)) / dx - (I_YP(u) - I(u)) / dy + f0) /   \
+                       (I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h))
 
     # Enforce BCs
     U = periodic(U,params)
@@ -92,13 +135,15 @@ def flux_sw_ener(uvh, params):
     #q = even(q,params)
 
     # Compute fluxes
-    flux[0,:,:] =  0.25*(q[1:-1,1:-1]*(V[1:-1,2:] + V[1:-1,1:-1]) + q[0:-2,1:-1]*(V[0:-2,2:] + V[0:-2,1:-1])) - (B[1:-1,2:]-B[1:-1,1:-1])/dx
-    flux[1,:,:] = -0.25*(q[1:-1,1:-1]*(U[2:,1:-1] + U[1:-1,1:-1]) + q[1:-1,0:-2]*(U[2:,0:-2] + U[1:-1,0:-2])) - (B[2:,1:-1]-B[1:-1,1:-1])/dy
+    flux[0, :, :] = 0.25* (I(q) * (I_XP(V) + I(V)) + I_YN(q) * (I_XP_YN(V) + I_YN(V))) - \
+                    (I_XP(B) - I(B))/dx
+    flux[1, :, :] = -0.25*(I(q) * (I_YP(U) + I(U)) + I_XN(q) * (I_XN_YP(U) + I_XN(U))) - \
+                    (I_YP(B) - I(B))/dy
     flux[2,:,:] = -(U[1:-1,1:-1] - U[1:-1,0:-2])/dx - (V[1:-1,1:-1] - V[0:-2,1:-1])/dy
 
     #compute energy and enstrophy
-    energy = 0.5*np.mean( gp*h[1:-1,1:-1]**2 + 0.5*h[1:-1,1:-1]*(u[1:-1,1:-1]**2 + u[1:-1,0:-2]**2 + v[1:-1,1:-1]**2 + v[0:-2,1:-1]**2))
-    enstrophy = 0.125*np.mean((h[1:-1,1:-1] + h[2:,1:-1] + h[1:-1,2:] + h[2:,2:])*q[1:-1,1:-1]**2)
+    energy = 0.5*np.mean( gp*I(h)**2 + 0.5*I(h)*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2))
+    enstrophy = 0.125*np.mean((I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h)) * I(q)**2)
 
     return flux, energy, enstrophy
 

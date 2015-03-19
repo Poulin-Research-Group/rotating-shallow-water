@@ -124,7 +124,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     # UVH[:, :, 2] = uvh
 
     # loop through time
-    for n in range(3, N):
+    for n in range(3, N+1):
         # AB3 step
         uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, inds)
         # UVH[:, :, n] = uvh
@@ -152,8 +152,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     plt.show()
     """
 
-    print t_total
-    return t_total
+    # print t_total
+    # return t_total
 
 
 print 'pure numpy'
