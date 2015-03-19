@@ -55,8 +55,9 @@
 
 
 from sadourny_setup import flux_sw_ener, Params, np, plt, animation, sys, time, \
-                           ener_Euler, ener_AB2, ener_AB3, PLOTTO_649,   \
-                           ener_Euler_f, ener_AB2_f, ener_AB3_f, periodic, odd, even
+                           ener_Euler, ener_AB2, ener_AB3, PLOTTO_649, writer, \
+                           ener_Euler_f, ener_AB2_f, ener_AB3_f, periodic, odd, even, \
+                           ener_Euler_f90, ener_AB2_f90, ener_AB3_f90
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
@@ -118,8 +119,10 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # UVH[:, :, :, 0] = uvh
 
     # check to see if we're using Fortran
-    if Flux_Euler is ener_Euler_f:
+    if Flux_Euler is ener_Euler_f or Flux_Euler is ener_Euler_f90:
         params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
+
+    t_start = time.time()
 
     # Euler step
     uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params)
@@ -149,6 +152,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
+
+    t_final = time.time()
     
     # PLOTTING ==========================================================================
     # if Flux_Euler is ener_Euler_f:
@@ -156,6 +161,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # else:
     #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')    
 
+    """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
 
@@ -168,11 +174,26 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     ax2.plot((enstr-enstr[0]), '-or', linewidth=2, label='Enstrophy')
     ax2.set_title('Enstrophy')
     plt.show()
+    """
     # if Flux_Euler is ener_Euler_f: plt.savefig('./anims/ener-enst-FORTRAN.png')
     # else:                          plt.savefig('./anims/ener-enst-NUMPY.png')
 
-    return uvh[:, 1:-1, 1:-1]
+    # return uvh[:, 1:-1, 1:-1]
+    return t_final - t_start
 
 
-uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
-uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)
+if len(sys.argv) > 1:
+    argv = sys.argv[1:]
+    method = argv[0]     # either Numpy, F77, F90
+    sc = int(argv[1])
+
+    if method == 'numpy':
+        t = main(ener_Euler, ener_AB2, ener_AB3)
+    elif method == 'f77':
+        t = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)
+    elif method == 'f90':
+        t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90)
+    else:
+        raise Exception("Invalid method specified.")
+        
+    writer(t, method, sc)

@@ -3,8 +3,10 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import sys
 import time
+import os
 from mpi4py import MPI
 from flux_sw_ener import euler_f as ener_Euler_f, ab2_f as ener_AB2_f, ab3_f as ener_AB3_f
+from flux_sw_ener90 import euler_f as ener_Euler_f90, ab2_f as ener_AB2_f90, ab3_f as ener_AB3_f90
 comm = MPI.COMM_WORLD
 
 
@@ -193,3 +195,16 @@ def PLOTTO_649(UVHG, xG, yG, Nt, output_name):
 
     im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
     im_ani.save(output_name)
+
+
+def writer(t_final, method, sc):
+    filename = './tests/%s/sc-%d.txt' % (method, sc)
+
+    # check to see if file exists; if it doesn't, create it.
+    if not os.path.exists(filename):
+        open(filename, 'a').close()
+
+    # write time to the file
+    F = open(filename, 'a')
+    F.write('%f\n' % t_final)
+    F.close()
