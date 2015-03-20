@@ -188,12 +188,17 @@ if len(sys.argv) > 1:
     sc = int(argv[1])
 
     if method == 'numpy':
-        t = main(ener_Euler, ener_AB2, ener_AB3)
+        t = main(ener_Euler, ener_AB2, ener_AB3, sc)
     elif method == 'f77':
-        t = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)
+        t = main(ener_Euler_f, ener_AB2_f, ener_AB3_f, sc)
     elif method == 'f90':
-        t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90)
+        t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90, sc)
     else:
         raise Exception("Invalid method specified.")
-        
+    
+    print t
     writer(t, method, sc)
+
+
+# uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
+# uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)

@@ -149,48 +149,34 @@ c     calc h
       h = H0 + uvh(3, :, :)
 
 c     calc U
-      U(1:Ny,1:Nx) = 0.5*(h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)) 
-     &             * uvh(1,1:Ny,1:Nx)
-
+      U(1:Ny,1:Nx) = 0.5*(h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)) * uvh(1,1:Ny,1:Nx)
       call ghostify(U, Nx, Ny)
 
-
 c     calc V
-      V(1:Ny,1:Nx) = 0.5*(h(2:Ny+1, 1:Nx) + h(1:Ny,1:Nx))
-     &             * uvh(2,1:Ny,1:Nx)
-
+      V(1:Ny,1:Nx) = 0.5*(h(2:Ny+1, 1:Nx) + h(1:Ny,1:Nx)) * uvh(2,1:Ny,1:Nx)
       call ghostify(V, Nx, Ny)
-      
-      
+
 c     calc B
       B(1:Ny,1:Nx) = gp*h(1:Ny,1:Nx)
      &  + 0.25*(uvh(1,1:Ny,1:Nx)**2 + uvh(1,1:Ny,0:Nx-1)**2
      &  +       uvh(2,1:Ny,1:Nx)**2 + uvh(2,0:Ny-1,1:Nx)**2 )
-
       call ghostify(B, Nx, Ny)
       
-
 c     calc q
       q(1:Ny,1:Nx) = ((uvh(2,1:Ny,2:Nx+1) - uvh(2,1:Ny,1:Nx)) / dx
-     &             -  (uvh(1,2:Ny+1,1:Nx) - uvh(1,1:Ny,1:Nx)) / dy
-     &             +  f0)
-     &             / (0.25*(h(2:Ny+1,2:Nx+1) + h(2:Ny+1,1:Nx) 
-     &             +        h(1:Ny,2:Nx+1)   + h(1:Ny,1:Nx)))
-
+     &             -  (uvh(1,2:Ny+1,1:Nx) - uvh(1,1:Ny,1:Nx)) / dy  +  f0)
+     &             / (0.25*(h(2:Ny+1,2:Nx+1) + h(2:Ny+1,1:Nx) + h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)))
       call ghostify(q, Nx, Ny)
 
-
 c     calc flux for u_t
-      flux(1,1:Ny,1:Nx) = (q(0:Ny-1,1:Nx)*(V(0:Ny-1,2:Nx+1)
-     &                  +  V(0:Ny-1,1:Nx)) + q(1:Ny,1:Nx)
-     &                  * (V(1:Ny,2:Nx+1) + V(1:Ny,1:Nx)))*0.25
+      flux(1,1:Ny,1:Nx) = ( q(0:Ny-1,1:Nx) * (V(0:Ny-1,2:Nx+1) + V(0:Ny-1,1:Nx)) 
+     &                  +   q(1:Ny,1:Nx)   * (V(1:Ny,2:Nx+1)   + V(1:Ny,1:Nx))) *0.25
      &                  - (B(1:Ny,2:Nx+1) - B(1:Ny,1:Nx)) / dx
 
 c     calc flux for v_t
-      flux(2,1:Ny,1:Nx) = -(q(1:Ny,0:Nx-1)*(U(2:Ny,0:Nx-1) 
-     &                  +   U(1:Ny,0:Nx-1)) + q(1:Ny,1:Nx)
-     &                  *  (U(2:Ny+1,1:Nx) + U(1:Ny,1:Nx)))*0.25
-     &                  -  (B(2:Ny+1,1:Nx) - B(1:Ny,1:Nx)) / dy
+      flux(2,1:Ny,1:Nx) = ( q(1:Ny,0:Nx-1) * (U(2:Ny,0:Nx-1) + U(1:Ny,0:Nx-1))
+     &                  +   q(1:Ny,1:Nx)   * (U(2:Ny+1,1:Nx) + U(1:Ny,1:Nx))) *0.25
+     &                  - (B(2:Ny+1,1:Nx) - B(1:Ny,1:Nx)) / dy
 
 c     calc flux for h_t
       flux(3,1:Ny,1:Nx) = (U(1:Ny,0:Nx-1) - U(1:Ny,1:Nx)) / dx
@@ -200,11 +186,10 @@ c     calc flux for h_t
       ! calculating energy and enstrophy
       ener = SUM(gp*h(1:Ny,1:Nx)**2 + 0.5*h(1:Ny,1:Nx)
      &     * (uvh(1, 1:Ny, 1:Nx)**2 + uvh(1, 1:Ny, 0:Nx-1)**2
-     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) )
-     &     / (2 * Ny * Nx)
+     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) ) / (2*Ny*Nx)
 
-      enst = SUM(q(1:Ny, 1:Nx)**2 * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) 
-     &       +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8 * Ny * Nx)
+      enst = SUM(q(1:Ny, 1:Nx)**2
+     &     * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8*Ny*Nx)
 
       end
 

@@ -1,4 +1,5 @@
 libs/
+**/tests
 **/*.png
 **/*.pdf
 **/*.mp4
@@ -6,5 +7,6 @@ libs/
 **/*.pyc
 **/*.save
 **/*.so
+**/*.log
 
 .ipynb_checkpoints/

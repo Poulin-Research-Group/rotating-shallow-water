@@ -97,9 +97,16 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     # Modify class
     params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny, dt)
     inds   = Inds(Ny)
-    if Flux_Euler is ener_Euler_f:
+
+    # check to see if we're using Fortran
+    if Flux_Euler is not ener_Euler:
         params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
-        inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
+        # Fortran 77?
+        if Flux_Euler is ener_Euler_f:
+            inds = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i, inds.Ih_f])
+        # or Fortran 90?
+        else:
+            inds = np.array([inds.Iv_i + 1, inds.Iv_f, inds.Ih_i + 1, inds.Ih_f])
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
