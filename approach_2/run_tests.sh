@@ -1,19 +1,5 @@
-for ((sc=1; sc <= 1; sc++)) do
-  echo sc: $sc
-  echo numpy
-  for ((i=0; i<10; i++)) do
-    python sadourny.py numpy $sc
-  done
-
-  echo f77
-  for ((i=0; i<10; i++)) do
-    python sadourny.py f77 $sc
-  done
-
-  echo f90
-  for ((i=0; i<10; i++)) do
-    python sadourny.py f90 $sc
-  done
-
-  echo DONE $sc
-done
+bash test_sc.sh 1
+bash test_sc.sh 2
+bash test_sc.sh 4
+bash test_sc.sh 8
+bash test_sc.sh 16
