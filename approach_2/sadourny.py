@@ -9,13 +9,13 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     
     # Grid Parameters
     Lx,Ly  = 200e3, 200e3
-    Nx,Ny  = 128*sc, 128*sc
+    Nx,Ny  = 8*sc, 8*sc
     dx,dy  = Lx/Nx,Ly/Ny
     Nz     = 1
 
     # Define numerical method,geometry and grid
-    #geometry = channel #periodic
-    #grid = C
+    # geometry = channel #periodic
+    # grid = C
     
     # Physical parameters
     f0 = 1e-4
@@ -58,6 +58,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     for jj in range(3):
         uvh[jj, :, :] = periodic(uvh[jj, :, :], params)
 
+
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(Nt), np.zeros(Nt)
     # UVH = np.empty((3, Ny+2, Nx+2, Nt+1), dtype='d')
@@ -80,6 +81,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # AB2 step
     uvh, NLn, energy[1], enstr[1] = Flux_AB2(uvh, NLnm, params)
     # UVH[:, :, :, 2] = uvh
+    print uvh[2, 1:-1, 1:-1]
+    sys.exit()
 
     # Impose BCs
     for jj in range(3):
@@ -145,5 +148,5 @@ if len(sys.argv) > 1:
     writer(t, method, sc)
 
 
-# uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
+uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
 # uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)

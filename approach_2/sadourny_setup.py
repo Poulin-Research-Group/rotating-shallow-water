@@ -55,7 +55,7 @@ def I_XN_YN(A):
 def periodic(f, params):
     # Nx = params.Nx
     # Ny = params.Ny
-    Nx, Ny = np.array(f.shape) - 2
+    Ny, Nx = np.array(f.shape) - 2
 
     # Impose periodic BCs
     f[0,:]    = f[Ny,:]
@@ -168,6 +168,122 @@ def ener_AB3(uvh, NLn, NLnm, params):
     return uvh, NL, energy, enstr
 
 
+def set_mpi_bdr(uvh, rank, p, nx, uCol, vCol, hCol, uTags, vTags, hTags):
+    # send uvh[j, :, 1] (second column) ... j = 0,1,2
+    if 0 < rank:
+        # ...from rank to rank-1 (left)
+        comm.Send(uvh[0, :, 1].flatten(), dest=rank-1, tag=uTags[rank])
+        comm.Send(uvh[1, :, 1].flatten(), dest=rank-1, tag=vTags[rank])
+        comm.Send(uvh[2, :, 1].flatten(), dest=rank-1, tag=hTags[rank])
+    else:
+        # ...from 0 to p-1
+        comm.Send(uvh[0, :, 1].flatten(), dest=p-1,    tag=uTags[rank])
+        comm.Send(uvh[1, :, 1].flatten(), dest=p-1,    tag=vTags[rank])
+        comm.Send(uvh[2, :, 1].flatten(), dest=p-1,    tag=hTags[rank])
+
+    # receive uvh[:, 1], place in uvh[:, nx+1] (last column) ...
+    if rank < p-1:
+        # ... from rank+1
+        comm.Recv(uCol, source=rank+1, tag=uTags[rank+1])
+        comm.Recv(vCol, source=rank+1, tag=vTags[rank+1])
+        comm.Recv(hCol, source=rank+1, tag=hTags[rank+1])
+        uvh[0, :, -1] = uCol
+        uvh[1, :, -1] = vCol
+        uvh[2, :, -1] = hCol
+    else:
+        # ... from rank 0
+        comm.Recv(uCol, source=0, tag=uTags[0])
+        comm.Recv(vCol, source=0, tag=vTags[0])
+        comm.Recv(hCol, source=0, tag=hTags[0])
+        uvh[0, :, -1] = uCol
+        uvh[1, :, -1] = vCol
+        uvh[2, :, -1] = hCol
+
+    # send uvh[:, nx] (second-last column)...
+    if rank < p-1:
+        # ...from rank to rank+1
+        comm.Send(uvh[0, :, -2].flatten(), dest=rank+1, tag=uTags[rank])
+        comm.Send(uvh[1, :, -2].flatten(), dest=rank+1, tag=vTags[rank])
+        comm.Send(uvh[2, :, -2].flatten(), dest=rank+1, tag=hTags[rank])
+    else:
+        # ...from p-1 to 0
+        comm.Send(uvh[0, :, -2].flatten(), dest=0, tag=uTags[rank])
+        comm.Send(uvh[1, :, -2].flatten(), dest=0, tag=vTags[rank])
+        comm.Send(uvh[2, :, -2].flatten(), dest=0, tag=hTags[rank])
+
+    # receive uvh[:, nx], place in uvh[:, 0] (first column) ...
+    if 0 < rank:
+        # ...from rank-1
+        comm.Recv(uCol, source=rank-1, tag=uTags[rank-1])
+        comm.Recv(vCol, source=rank-1, tag=vTags[rank-1])
+        comm.Recv(hCol, source=rank-1, tag=hTags[rank-1])
+        uvh[0, :, 0] = uCol
+        uvh[1, :, 0] = vCol
+        uvh[2, :, 0] = hCol
+    else:
+        # ...from p-1
+        comm.Recv(uCol, source=p-1, tag=uTags[p-1])
+        comm.Recv(vCol, source=p-1, tag=vTags[p-1])
+        comm.Recv(hCol, source=p-1, tag=hTags[p-1])
+        uvh[0, :, 0] = uCol
+        uvh[1, :, 0] = vCol
+        uvh[2, :, 0] = hCol
+
+    # Impose periodic BCs
+
+    for jj in range(3):
+        uvh[jj, 0,  :] = uvh[jj, -2, :]
+        uvh[jj, -1, :] = uvh[jj,  1, :]
+    # f[:,0]    = f[:, nx]
+    # f[:,nx+1] = f[:,  1]
+
+    return uvh
+
+
+def gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n):
+    """
+    Gather each process' slice of uvh and store it in the global set of
+    solutions. Gathering is done on process 0.
+
+    Parameters
+    ----------
+    uvh : ndarray
+        process' slice of the solution (dimensions: (Ny, nx+2))
+    uvhG : ndarray
+        the global solution, excluding ghost points (dimensions: (Ny, p*nx))
+    UVHG : ndarray
+        the set of global solutions (dimensions: (Ny, p*nx, N)) where N is the
+        number of time steps defined elsewhere.
+    rank : int
+        rank of this process
+    p : int
+        number of processes
+    nx : int
+        the number of real (non-ghost) x points per process
+    Ny : int
+        the number of y points
+    n : int
+        time-step number
+
+    Returns
+    -------
+    ndarray or None
+        If this process' rank is 0, then the newest solution is added to UVHG
+        and UVHG is returned. Otherwise, None is returned.
+    """
+    comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
+    if rank == 0:
+        # evenly split ug into a list of p parts
+        temp = np.array_split(uvhG, p)
+        # reshape each part
+        temp = [a.reshape(3, Ny, nx) for a in temp]
+
+        UVHG[:, :, :, n] = np.dstack(temp)
+        return UVHG
+    else:
+        return None
+
+
 class Params(object):
     """
     See approach_1/sadoury_setup.py for doc.
@@ -185,13 +301,54 @@ class Params(object):
         self.dt   = dt
 
 
-def PLOTTO_649(UVHG, xG, yG, Nt, output_name):
+def create_global_objects(rank, xG, yG, dx, hmax, Lx, N):
+    if rank == 0:
+        xx, yy = np.meshgrid(xG, yG)
+        xuG = xx
+        xvG = xx - dx/2
+        xhG = xx - dx/2
+        yhG = yy
+
+        Nx = len(xG)
+        Ny = len(yG)
+
+        uvhG = np.zeros([3, Ny, Nx])                # global initial solution
+        UVHG = np.empty((3, Ny, Nx, N), dtype='d')  # set of ALL global solutions
+
+        uvhG[0, :, :] = 0*xuG
+        uvhG[1, :, :] = 0*xvG
+        uvhG[2, :, :] = hmax*np.exp(-(xhG**2 + yhG**2)/(Lx/6.0)**2)
+        UVHG[:, :, :, 0] = uvhG
+        
+        uvhG = uvhG.flatten()
+
+    else:
+        uvhG = None
+        UVHG = None
+
+    return (uvhG, UVHG)
+
+
+def create_x_points(rank, p, xG, xsG, nx):
+    # TODO: update this.
+    x = np.array_split(xG, p)[rank]
+    xs = np.array([])
+    return (x, xs)
+
+
+def PLOTTO_649(UVHG, xG, yG, Nt, output_name, MPI):
     xhG, yhG = np.meshgrid(xG,  yG)
 
     fig = plt.figure()
     ims = []
-    for n in xrange(Nt):
-        ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2, 1:-1, 1:-1, n], norm=plt.Normalize(0, 1)), ))
+    if not MPI:
+        for n in xrange(Nt):
+            ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2, 1:-1, 1:-1, n], 
+                norm=plt.Normalize(0, 1)), ))
+    else:
+        for n in xrange(Nt):
+            ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2, :, :, n], 
+                norm=plt.Normalize(0, 1)), ))
 
     im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
     im_ani.save(output_name)
