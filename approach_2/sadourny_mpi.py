@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, gather_uvh, Params, set_uvh_bdr,              \
-                           create_global_objects, np, plt, animation, sys, time, MPI,   \
-                           comm, PLOTTO_649, ener_Euler_MPI, ener_AB2_MPI, ener_AB3_MPI
+from sadourny_setup import gather_uvh, set_uvh_bdr, create_global_objects, np, \
+                           sys, time, MPI, comm, PLOTTO_649, ener_Euler_MPI,    \
+                           ener_AB2_MPI, ener_AB3_MPI
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
@@ -10,15 +10,12 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     p = comm.Get_size()      # number of processors
     rank = comm.Get_rank()   # this process' ID
     tags = dict([(j, j+5) for j in xrange(p)])
-    print tags
-    print rank
 
     # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
     Nx, Ny  = 128*sc, 128*sc
     dx, dy  = Lx/Nx, Ly/Ny
-    Nz = 1
     nx = Nx / p
 
     # Define numerical method,geometry and grid
@@ -33,7 +30,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # Temporal Parameters
     t0, tf = 0.0, 3600.0
     dt = 5./sc
-    N  = int((tf - t0)/dt)
+    Nt  = int((tf - t0)/dt)
 
     # x conditions
     x0, xf = -Lx/2, Lx/2
@@ -54,7 +51,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     yh = yy
 
     # construct the placeholder for parameters
-    params = Params(dx, dy, f0, gp, H0, nx, Ny, Nz, dt)
+    params = np.array([dx, dy, f0, gp, H0, dt])
+    dims   = np.array([nx, Ny])
 
     # allocate space to communicate the ghost columns
     col = np.empty(Ny+2, dtype='d')
@@ -68,36 +66,32 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # uvh[2,1:Ny+1,1:Nx+1,0] = hmax*np.exp(-((yh-Ly/4)**2)/(Lx/20)**2)
 
     # create initial global solution and set of global solutions
-    uvhG, UVHG = create_global_objects(rank, xG, y, Nx, Ny, N, dx, hmax, Lx)
+    uvhG, UVHG = create_global_objects(rank, xG, y, Nx, Ny, Nt, dx, hmax, Lx)
 
     # Impose BCs
     uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
 
     # Define arrays to store conserved quantitites: energy and enstrophy
-    energy, enstr = np.zeros(N), np.zeros(N)
-
-    # check to see if we're using Fortran
-    # if Flux_Euler is ener_Euler_f or Flux_Euler is ener_Euler_f90:
-    #     params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
+    energy, enstr = np.zeros(Nt), np.zeros(Nt)
 
     comm.Barrier()         # start MPI timer
     t_start = MPI.Wtime()
 
     # BEGIN SOLVING =====================================================================
     # Euler step
-    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, rank, p, col, tags)
+    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, dims, rank, p, col, tags)
     uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
     UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, 1)      # add uvh to global soln
 
     # AB2 step
-    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, rank, p, col, tags)
+    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, dims, rank, p, col, tags)
     uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
     UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, 2)
 
     # loop through time
-    for n in range(3, N):
+    for n in range(3, Nt):
         # AB3 step
-        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, rank, p, col, tags)
+        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, dims, rank, p, col, tags)
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -112,7 +106,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
         print t_final
 
         # PLOTTING ======================================================================
-        PLOTTO_649(UVHG, xG, y, N, './anims/sadourny_mpi_%d.mp4' % p, True)
+        PLOTTO_649(UVHG, xG, y, Nt, './anims/sadourny_mpi_%d.mp4' % p, True)
 
         # print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
         # print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]

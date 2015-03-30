@@ -5,9 +5,9 @@ import sys
 import time
 import os
 from mpi4py import MPI
-from flux_sw_ener import euler_f as ener_Euler_f, \
-                         ab2_f as ener_AB2_f,      \
-                         ab3_f as ener_AB3_f
+from flux_sw_ener   import euler_f as ener_Euler_f, \
+                           ab2_f as ener_AB2_f,      \
+                           ab3_f as ener_AB3_f
 from flux_sw_ener90 import euler_f as ener_Euler_f90, \
                            ab2_f as ener_AB2_f90,      \
                            ab3_f as ener_AB3_f90
@@ -96,20 +96,20 @@ def ab3(uvh, dt, NL, NLn, NLnm):
     return uvh[:, 1:-1, 1:-1] + dt/12*(23*NL - 16*NLn + 5*NLnm)
 
 
-def flux_sw_ener(uvh, params):
+def flux_sw_ener(uvh, params, dims):
 
     # Define parameters
-    dx, dy     = params.dx, params.dy
-    gp, f0, H0 = params.gp, params.f0, params.H0
-    Nx, Ny     = params.Nx, params.Ny
+    dx, dy     = params[0], params[1]
+    f0, gp, H0 = params[2], params[3], params[4]
+    Nx, Ny     = dims
 
     # Pull out primitive variables
     u, v, h = uvh[0, :, :], uvh[1, :, :],  H0 + uvh[2, :, :]
 
     # Initialize fields
-    U, V = np.zeros((Ny+2, Nx+2), float), np.zeros((Ny+2, Nx+2), float)
-    B, q = np.zeros((Ny+2, Nx+2), float), np.zeros((Ny+2, Nx+2), float)
-    flux = np.zeros((3, Ny, Nx), float)
+    U, V = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
+    B, q = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
+    flux = np.zeros((3, Ny, Nx))
 
     # Compute U, V, B, q
     U[1:-1, 1:-1] = 0.5*(I(h) + I_XP(h)) * I(u)
@@ -142,20 +142,20 @@ def flux_sw_ener(uvh, params):
     return flux, energy, enstrophy
 
 
-def flux_sw_ener_MPI(uvh, params, rank, p, col, tags):
+def flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags):
     # MPI version...
     # Define parameters
-    dx, dy     = params.dx, params.dy
-    gp, f0, H0 = params.gp, params.f0, params.H0
-    Nx, Ny     = params.Nx, params.Ny
+    dx, dy     = params[0], params[1]
+    f0, gp, H0 = params[2], params[3], params[4]
+    Nx, Ny     = dims
 
     # Pull out primitive variables
     u, v, h = uvh[0, :, :], uvh[1, :, :],  H0 + uvh[2, :, :]
 
     # Initialize fields
-    U, V = np.zeros((Ny+2, Nx+2), float), np.zeros((Ny+2, Nx+2), float)
-    B, q = np.zeros((Ny+2, Nx+2), float), np.zeros((Ny+2, Nx+2), float)
-    flux = np.zeros((3, Ny, Nx), float)
+    U, V = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
+    B, q = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
+    flux = np.zeros((3, Ny, Nx))
 
     # Compute U, V, B, q
     U[1:-1, 1:-1] = 0.5*(I(h) + I_XP(h)) * I(u)
@@ -188,39 +188,39 @@ def flux_sw_ener_MPI(uvh, params, rank, p, col, tags):
     return flux, energy, enstrophy
 
 
-def ener_Euler(uvh, params):
-    NLnm, energy, enstr = flux_sw_ener(uvh, params)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params.dt, NLnm)
+def ener_Euler(uvh, params, dims):
+    NLnm, energy, enstr = flux_sw_ener(uvh, params, dims)
+    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
 
 
-def ener_Euler_MPI(uvh, params, rank, p, col, tags):
-    NLnm, energy, enstr = flux_sw_ener_MPI(uvh, params, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params.dt, NLnm)
+def ener_Euler_MPI(uvh, params, dims, rank, p, col, tags):
+    NLnm, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
+    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
 
 
-def ener_AB2(uvh, NLnm, params):
-    NLn, energy, enstr = flux_sw_ener(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params.dt, NLn, NLnm)
+def ener_AB2(uvh, NLnm, params, dims):
+    NLn, energy, enstr = flux_sw_ener(uvh, params, dims)
+    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
     return uvh, NLn, energy, enstr
 
 
-def ener_AB2_MPI(uvh, NLnm, params, rank, p, col, tags):
-    NLn, energy, enstr = flux_sw_ener_MPI(uvh, params, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params.dt, NLn, NLnm)
+def ener_AB2_MPI(uvh, NLnm, params, dims, rank, p, col, tags):
+    NLn, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
+    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
     return uvh, NLn, energy, enstr
 
 
-def ener_AB3(uvh, NLn, NLnm, params):
-    NL, energy, enstr  = flux_sw_ener(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params.dt, NL, NLn, NLnm)
+def ener_AB3(uvh, NLn, NLnm, params, dims):
+    NL, energy, enstr  = flux_sw_ener(uvh, params, dims)
+    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
 
-def ener_AB3_MPI(uvh, NLn, NLnm, params, rank, p, col, tags):
-    NL, energy, enstr  = flux_sw_ener_MPI(uvh, params, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params.dt, NL, NLn, NLnm)
+def ener_AB3_MPI(uvh, NLn, NLnm, params, dims, rank, p, col, tags):
+    NL, energy, enstr  = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
+    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
 
@@ -283,23 +283,6 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n):
         return None
 
 
-class Params(object):
-    """
-    See approach_1/sadoury_setup.py for doc.
-    """
-    def __init__(self, dx, dy, f0, gp, H0, Nx, Ny, Nz, dt):
-        super(Params, self).__init__()
-        self.dx   = dx
-        self.dy   = dy
-        self.f0   = f0
-        self.gp   = gp
-        self.H0   = H0
-        self.Nx   = Nx
-        self.Ny   = Ny
-        self.Nz   = Nz
-        self.dt   = dt
-
-
 def create_global_objects(rank, xG, yG, Nx, Ny, N, dx, hmax, Lx):
     if rank == 0:
         xx, yy = np.meshgrid(xG, yG)
@@ -343,7 +326,7 @@ def PLOTTO_649(UVHG, xG, yG, Nt, output_name, MPI=False):
     im_ani.save(output_name)
 
 
-def writer(t_final, method, sc):
+def writer(t_total, method, sc):
     filename = './tests/%s/sc-%d.txt' % (method, sc)
 
     # check to see if file exists; if it doesn't, create it.
@@ -352,7 +335,7 @@ def writer(t_final, method, sc):
 
     # write time to the file
     F = open(filename, 'a')
-    F.write('%f\n' % t_final)
+    F.write('%f\n' % t_total)
     F.close()
 
 

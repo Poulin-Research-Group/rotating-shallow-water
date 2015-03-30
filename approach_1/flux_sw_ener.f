@@ -5,7 +5,7 @@ c     calculate the flux and update the solution using euler step
       double precision uvh(3*Ny,Nx), ener, enst
       double precision NLnm(3*Ny,Nx)
       double precision params(6), dt
-      integer inds(3)
+      integer inds(6)
 
       dt = params(6)
 
@@ -26,7 +26,7 @@ c     calculate the flux and update the solution using AB2 step
       double precision uvh(3*Ny,Nx), ener, enst
       double precision NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
       double precision params(6), dt
-      integer inds(3)
+      integer inds(6)
 
       dt = params(6)
 
@@ -47,7 +47,7 @@ c     calculate the flux and update the solution using AB3 step
       double precision uvh(3*Ny,Nx), ener, enst
       double precision NL(3*Ny,Nx), NLn(3*Ny,Nx), NLnm(3*Ny,Nx)
       double precision params(6), dt
-      integer inds(3)
+      integer inds(6)
 
       dt = params(6)
 
@@ -70,7 +70,7 @@ c     calculate h, U, V, B, q --> flux, energy, enstrophy.
 
       double precision params(6), dx, dy, gp, f0, H0
       double precision h(Ny,Nx), U(Ny,Nx), V(Ny,Nx), B(Ny,Nx), q(Ny,Nx)
-      integer inds(3), Iv_i, Iv_f, Ih_i
+      integer inds(6), Iv_i, Iv_f, Ih_i
 
 cf2py intent(in) :: uvh, params, inds
 cf2py intent(hide) :: Nx, Ny
@@ -78,13 +78,13 @@ cf2py intent(out) :: flux, ener, enst
 
       dx = params(1)
       dy = params(2)
-      gp = params(3)
-      f0 = params(4)
+      f0 = params(3)
+      gp = params(4)
       H0 = params(5)
 
-      Iv_i = inds(1)
-      Iv_f = inds(2)
-      Ih_i = inds(3)
+      Iv_i = inds(3)
+      Iv_f = inds(4)
+      Ih_i = inds(5)
 
       call calc_h(uvh, h, Nx, Ny, H0, Ih_i)
       call calc_U(uvh, h, U, Nx, Ny)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, flux_sw_enst, Params, np, plt, animation, sys, \
-                           time, PLOTTO_649, flux_sw_ener_Fcomp, Inds, ener_Euler, \
-                           ener_AB2, ener_AB3, ener_Euler_f, ener_AB2_f, ener_AB3_f
+from sadourny_setup import np, sys, time, PLOTTO_649, Inds, ener_Euler, \
+                           ener_AB2, ener_AB3, ener_Euler_f, ener_AB2_f, \
+                           ener_AB3_f
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
@@ -26,12 +26,12 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     ys = np.linspace(y0+dy/2, yf-dy/2, Ny)
 
     # Physical parameters
-    f0, beta, gp, H0  = 1.e-4, 0e-11, 9.81, 500.
+    f0, gp, H0  = 1.e-4, 9.81, 500.
 
     # Temporal Parameters
     t0, tf = 0.0, 3600.0
     dt = 5./sc
-    N  = int((tf - t0)/dt)
+    Nt  = int((tf - t0)/dt)
 
     # Define Grid (staggered grid)
     xq, yq = np.meshgrid(xs, ys)
@@ -39,19 +39,20 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     xu, yu = np.meshgrid(xs, y)
     xv, yv = np.meshgrid(x,  ys)
 
-    # Modify class
-    params = Params(dx, dy, f0, beta, gp, H0, Nx, Ny, dt)
-    inds   = Inds(Ny)
+    # Create parameters and indices
+    params = np.array([dx, dy, f0, gp, H0, dt])
+    inds   = np.array([0, Ny, Ny, 2*Ny, 2*Ny, 3*Ny])
 
     # check to see if we're using Fortran
-    if Flux_Euler is not ener_Euler:
-        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
-        # Fortran 77?
-        if Flux_Euler is ener_Euler_f:
-            inds = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i, inds.Ih_f])
-        # or Fortran 90?
-        else:
-            inds = np.array([inds.Iv_i + 1, inds.Iv_f, inds.Ih_i + 1, inds.Ih_f])
+    # if Flux_Euler is not ener_Euler:
+    #     # Fortran 77?
+    #     if Flux_Euler is ener_Euler_f:
+    #         inds = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
+    #     # or Fortran 90?
+    #     else:
+    #         inds = np.array([inds.Iv_i + 1, inds.Iv_f, inds.Ih_i + 1])
+
+    # TODO: write Fortran 90 code ------------
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -60,26 +61,26 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
                      hmax*np.exp(-(xh**2 + (1.0*yh)**2)/(Lx/6.0)**2)])
 
     # Define arrays to store conserved quantitites: energy and enstrophy
-    energy, enstr = np.zeros(N), np.zeros(N)
-    # UVH = np.empty((3*Ny, Nx, N), dtype='d')
-    # UVH[:, :, 0] = uvh
+    energy, enstr = np.zeros(Nt), np.zeros(Nt)
+    UVH = np.empty((3*Ny, Nx, Nt+1), dtype='d')
+    UVH[:, :, 0] = uvh
 
     # BEGIN SOLVING =====================================================================
     t_start = time.time()
 
     # Euler step
     uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, inds)
-    # UVH[:, :, 1] = uvh
+    UVH[:, :, 1] = uvh
 
     # AB2 step
-    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, inds)
-    # UVH[:, :, 2] = uvh
+    uvh, NLn, energy[1], enstr[1] = Flux_AB2(uvh, NLnm, params, inds)
+    UVH[:, :, 2] = uvh
 
     # loop through time
-    for n in range(3, N+1):
+    for n in range(3, Nt+1):
         # AB3 step
         uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, inds)
-        # UVH[:, :, n] = uvh
+        UVH[:, :, n] = uvh
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -88,7 +89,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     t_total = t_final - t_start
 
     # PLOTTING ==========================================================================
-    # PLOTTO_649(UVH, x, y, Ny, N, './anims/sadourny-flux_ener_sw.mp4')
+    # PLOTTO_649(UVH, x, y, Ny, Nt, './anims/sadourny-flux_ener_sw.mp4')
 
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
     print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
@@ -104,7 +105,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     plt.show()
     """
 
-    # print t_total
+    print t_total
     # return t_total
 
 

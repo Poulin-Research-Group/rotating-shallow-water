@@ -16,9 +16,9 @@ def add_point_labels(x, y):
 
 
 def graph(approach):
-    methods = ['numpy', 'f77', 'f90']
-    scs     = [1, 2, 4]
-    y_data  = dict(zip(methods, [[], [], []]))
+    methods = ['numpy', 'f2py-f77', 'f2py-f90']
+    scs     = [1, 2, 4, 8, 16]
+    y_data  = dict(zip(methods, [[] for i in xrange(5)]))
 
     for method in methods:
         for sc in scs:
@@ -26,14 +26,14 @@ def graph(approach):
             y_data[method].append(mean_time)
 
         plt.plot(scs, y_data[method], label=method)
-        add_point_labels(scs, y_data[method])
+        add_point_labels(scs[3:], y_data[method][3:])
 
     plt.xlim([0,  scs[-1] + 0.5])
     plt.xlabel('$sc$ ($N=128sc$, grid size is $N\\times N$ )')
     plt.ylabel('Average time (s)')
     plt.title('Average time of solving the Rotating Shallow Water equations in 2D')
     plt.legend(loc='best')
-    plt.savefig('./approach_%d/graphs/times.pdf' % approach)
+    plt.savefig('./approach_%d/graphs/times_new.pdf' % approach)
     # plt.show()
 
 

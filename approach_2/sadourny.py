@@ -11,7 +11,6 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     Lx, Ly  = 200e3, 200e3
     Nx, Ny  = 128*sc, 128*sc
     dx, dy  = Lx/Nx, Ly/Ny
-    Nz     = 1
 
     # Define numerical method,geometry and grid
     # geometry = channel #periodic
@@ -41,7 +40,8 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     yh = yy
 
     # Modify class
-    params = Params(dx, dy, f0, gp, H0, Nx, Ny, Nz, dt)
+    params = np.array([dx, dy, f0, gp, H0, dt])
+    dims   = np.array([Nx, Ny])
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.0
@@ -60,20 +60,16 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     UVH = np.empty((3, Ny+2, Nx+2, Nt+1), dtype='d')
     UVH[:, :, :, 0] = uvh
 
-    # check to see if we're using Fortran
-    if Flux_Euler is ener_Euler_f or Flux_Euler is ener_Euler_f90:
-        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
-
     t_start = time.time()
 
     # Euler step
-    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params)
+    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, dims)
     for jj in range(3):
         uvh[jj, :, :] = periodic(uvh[jj, :, :])
     UVH[:, :, :, 1] = uvh
 
     # AB2 step
-    uvh, NLn, energy[1], enstr[1] = Flux_AB2(uvh, NLnm, params)
+    uvh, NLn, energy[1], enstr[1] = Flux_AB2(uvh, NLnm, params, dims)
     for jj in range(3):
         uvh[jj, :, :] = periodic(uvh[jj, :, :])
     UVH[:, :, :, 2] = uvh
@@ -81,7 +77,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # step through time
     for ii in range(3, Nt+1):
         # AB3 step
-        uvh, NL, energy[ii-1], enstr[ii-1] = Flux_AB3(uvh, NLn, NLnm, params)
+        uvh, NL, energy[ii-1], enstr[ii-1] = Flux_AB3(uvh, NLn, NLnm, params, dims)
         for jj in range(3):
             uvh[jj, :, :] = periodic(uvh[jj, :, :])
         UVH[:, :, :, ii] = uvh
@@ -92,10 +88,10 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     t_final = time.time()
 
     # PLOTTING ==========================================================================
-    # if Flux_Euler is ener_Euler_f:
-    #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
-    # else:
-    #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')
+    if Flux_Euler is ener_Euler_f:
+        PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
+    else:
+        PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -135,5 +131,5 @@ if len(sys.argv) > 1:
     writer(t, method, sc)
 
 
-# uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
+uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
 # uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)

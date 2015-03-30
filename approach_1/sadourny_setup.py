@@ -76,17 +76,9 @@ def ab3(uvh, dt, NL, NLn, NLnm):
 def flux_sw_ener(uvh, params, inds):
 
     # Define parameters
-    dx = params.dx
-    dy = params.dy
-    gp = params.gp
-    f0 = params.f0
-    H0 = params.H0
-    Iu_i = inds.Iu_i
-    Iu_f = inds.Iu_f
-    Iv_i = inds.Iv_i
-    Iv_f = inds.Iv_f
-    Ih_i = inds.Ih_i
-    Ih_f = inds.Ih_f
+    dx, dy     = params[0], params[1]
+    f0, gp, H0 = params[2], params[3], params[4]
+    Iu_i, Iu_f, Iv_i, Iv_f, Ih_i, Ih_f = inds
 
     # Turn off nonlinear terms
     h = H0 + uvh[Ih_i:Ih_f]
@@ -178,19 +170,19 @@ def flux_sw_ener_Fcomp(uvh, params, inds):
 
 def ener_Euler(uvh, params, inds):
     NLnm, energy, enstr = flux_sw_ener(uvh, params, inds)
-    uvh = euler(uvh, params.dt, NLnm)
+    uvh = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
 
 
 def ener_AB2(uvh, NLnm, params, inds):
     NLn, energy, enstr = flux_sw_ener(uvh, params, inds)
-    uvh = ab2(uvh, params.dt, NLn, NLnm)
+    uvh = ab2(uvh, params[5], NLn, NLnm)
     return uvh, NLn, energy, enstr
 
 
 def ener_AB3(uvh, NLn, NLnm, params, inds):
     NL, energy, enstr = flux_sw_ener(uvh, params, inds)
-    uvh = ab3(uvh, params.dt, NL, NLn, NLnm)
+    uvh = ab3(uvh, params[5], NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
 
@@ -303,85 +295,6 @@ def gather_uvh(uvh, uvhG, UVHG, rank, p, mx, Ny, n):
         return UVHG
     else:
         return None
-
-
-class Params(object):
-    """
-    A placeholder for the parameters of the solution.
-
-    Parameters
-    ----------
-    dx : float64
-        the spacing between two x points of the same kind (staggered vs
-        non-staggered)
-    dy : float64
-        the spacing between two y points of the same kind
-    f0 : float64
-        TODO
-    beta : float64
-        TODO
-    gp : float64
-        TODO
-    H0 : float64
-        TODO
-    Nx : int
-        The number of x points. If running in parallel, Nx is the number of x
-        points per process, excluding ghost points.
-    Ny : int
-        The number of y points.
-
-    Attributes
-    ----------
-    All parameters are also defined as attributes with the same name.
-    """
-    def __init__(self, dx, dy, f0, beta, gp, H0, Nx, Ny, dt):
-        super(Params, self).__init__()
-        self.dx   = dx
-        self.dy   = dy
-        self.f0   = f0
-        self.beta = beta
-        self.gp   = gp
-        self.H0   = H0
-        self.Nx   = Nx
-        self.Ny   = Ny
-        self.dt   = dt
-
-
-class Inds(object):
-    """
-    A placeholder for the indices of the solution matrix.
-
-    Parameters
-    ----------
-    Ny : int
-        The number of y points.
-
-    Attributes
-    ----------
-    Iu_i : int
-        The row number that the matrix of u values begins at.
-    Iu_f : int
-        The row number that the matrix of u values end at, plus one for the
-        sake of indexing.
-    Iv_i : int
-        The row number that the matrix of v values begins at.
-    Iv_f : int
-        The row number that the matrix of v values end at, plus one for the
-        sake of indexing.
-    Ih_i : int
-        The row number that the matrix of h values begins at.
-    Ih_f : int
-        The row number that the matrix of h values end at, plus one for the
-        sake of indexing.
-    """
-    def __init__(self, Ny):
-        super(Inds, self).__init__()
-        self.Iu_i = 0    # first row of u
-        self.Iu_f = Ny   # last row of u; not inclusive!
-        self.Iv_i = Ny   # first row of v...
-        self.Iv_f = 2*Ny
-        self.Ih_i = 2*Ny
-        self.Ih_f = 3*Ny
 
 
 def create_global_objects(rank, xG, yG, xsG, ysG, hmax, Lx, N):

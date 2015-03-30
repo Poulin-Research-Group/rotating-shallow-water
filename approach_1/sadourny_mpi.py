@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, flux_sw_enst, gather_uvh, Params, set_mpi_bdr, \
-                           create_global_objects, np, plt, animation, sys, time, MPI, comm, \
+from sadourny_setup import gather_uvh, set_mpi_bdr, \
+                           create_global_objects, np, sys, time, MPI, comm, \
                            create_x_points, PLOTTO_649, Inds, ener_Euler, ener_AB2, ener_AB3, \
                            ener_Euler_f, ener_AB2_f, ener_AB3_f
 
@@ -34,12 +34,12 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     ys = np.linspace(y0+dy/2, yf-dy/2, Ny)
 
     # Physical parameters
-    f0, beta, gp, H0  = 1.e-4, 0e-11, 9.81, 500.
+    f0, gp, H0  = 1.e-4, 9.81, 500.
 
     # Temporal Parameters
     t0, tf = 0.0, 3600.0
     dt = 5./sc
-    N  = int((tf - t0)/dt)
+    Nt  = int((tf - t0)/dt)
 
     # Define Grid (staggered grid)
     xq, yq = np.meshgrid(xs, ys)
@@ -47,12 +47,20 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     xu, yu = np.meshgrid(xs, y)
     xv, yv = np.meshgrid(x,  ys)
 
-    # construct the placeholder for parameters
-    params = Params(dx, dy, f0, beta, gp, H0, nx, Ny, dt)
-    inds   = Inds(Ny)
-    if Flux_Euler is ener_Euler_f:
-        params = np.array([params.dx, params.dy, params.gp, params.f0, params.H0, params.dt])
-        inds   = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i, inds.Ih_f])
+    # Create parameters and indices
+    params = np.array([dx, dy, f0, gp, H0, dt])
+    inds   = np.array([0, Ny, Ny, 2*Ny, 2*Ny, 3*Ny])
+
+    # check to see if we're using Fortran
+    # if Flux_Euler is not ener_Euler:
+    #     # Fortran 77?
+    #     if Flux_Euler is ener_Euler_f:
+    #         inds = np.array([inds.Iv_i, inds.Iv_f, inds.Ih_i])
+    #     # or Fortran 90?
+    #     else:
+    #         inds = np.array([inds.Iv_i + 1, inds.Iv_f, inds.Ih_i + 1])
+
+    # TODO: write Fortran 90 code ------------
 
     # Initial Conditions with plot: u, v, h
     hmax = 1.e0
@@ -61,10 +69,10 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
                      hmax*np.exp(-(xh**2 + (1.0*yh)**2)/(Lx/6.0)**2)])
 
     # Define arrays to store conserved quantitites: energy and enstrophy
-    energy, enstr = np.zeros(N), np.zeros(N)
+    energy, enstr = np.zeros(Nt), np.zeros(Nt)
 
     # create initial global solution and set of global solutions
-    uvhG, UVHG = create_global_objects(rank, xG, y, xsG, ys, hmax, Lx, N)
+    uvhG, UVHG = create_global_objects(rank, xG, y, xsG, ys, hmax, Lx, Nt)
 
     # allocate space to communicate the ghost columns
     col = np.empty(3*Ny, dtype='d')
@@ -84,7 +92,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, 2)
 
     # loop through time
-    for n in range(3, N):
+    for n in range(3, Nt):
         # AB3 step
         uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, inds)
 
@@ -101,7 +109,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
 
     # PLOTTING ==========================================================================
     if rank == 0:
-        # PLOTTO_649(UVHG, xG, y, Ny, N, './anims/sadourny_mpi_%d.mp4' % p)
+        # PLOTTO_649(UVHG, xG, y, Ny, Nt, './anims/sadourny_mpi_%d.mp4' % p)
 
         print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
         print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
