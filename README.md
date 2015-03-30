@@ -46,31 +46,41 @@ f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw
 ## Running the code
 To test out the different methods in either `sadourny.py` or `sadourny_mpi.py`, call the `main` function using the different flux calculator & time steppers, and `sc` (scale) value. The methods that can be passed are:
 
-- `ener_Euler`, `ener_Euler_f`, `ener_Euler_f90`: Numpy, Fortran 77 and Fortran 90 implementations of Sadourny's first method (energy conserving) using an Euler time stepping method
-- `ener_AB2`, `ener_AB2_f`, `ener_AB2_f90`: Numpy, Fortran 77 and Fortran 90 implementations of Sadourny's first method using a second-order Adams-Bashforth time stepping method
-- `ener_AB3`, `ener_AB3_f`, `ener_AB3_f90`: Numpy, Fortran 77 and Fortran 90 implementations of Sadourny's first method using a third-order Adams-Bashforth time stepping method
+- `ener_Euler`, `ener_Euler_f`, `ener_Euler_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method (energy conserving) using an Euler time stepping method
+- `ener_AB2`, `ener_AB2_f`, `ener_AB2_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method using a second-order Adams-Bashforth time stepping method
+- `ener_AB3`, `ener_AB3_f`, `ener_AB3_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method using a third-order Adams-Bashforth time stepping method
 
-**NOTE**: Fortran 90 is not available for Approach 1 yet.
+**NOTE**: (f2py) Fortran 90 is not available for Approach 1 yet.
 
-Running `sadourny.py` as is will run the following:
+For example, in `approach_2`, add the following lines of code to the bottom of either `sadourny.py` or `sadourny_mpi.py` to solve the RSW equations with Numpy and (f2py) Fortran 77 with a grid size of 128-by-128:
 
 ```python
 # using Numpy
 main(ener_Euler, ener_AB2, ener_AB3, 1)
 
-# using Fortran 77
+# using (f2py) Fortran 77
 main(ener_Euler_f, ener_AB2_f, ener_AB3_f, 1)
 ```
 
-As with most (all?) MPI code, `sadourny_mpi.py` must be run from the terminal, e.g. running with two cores:
+To run the MPI code, `sadourny_mpi.py`, the terminal must be used, e.g. running with two cores:
 
 ```
 mpirun -np 2 python sadourny_mpi.py
 ```
 
-This will run the Fortran 77 implementation.
+## Running the tests
+**NOTE**: This is currently only available for approach 2.
+
+Running the command
+
+```
+bash run_tests.sh
+```
+
+will create a `tests` directory and other directories in the approach's directory, and then Numpy, (f2py) F77 and (f2py) F90 implementations of the solver will be run. This will run 10 trials for grid sizes 128-by-128, 256-by-256, and 512-by-512, and 2 trials for grid sizes 1024-by-1024 and 2048-by-2048.
 
 
 ## TODO
 - Write Fortran 90 code for Approach 1
-- MPI-ify Approach 2
+- Write PURE Fortran 77 and Fortran 90 code for both approaches
+- Add test script to Approach 1 dir

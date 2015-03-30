@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, Params, np, plt, animation, sys, time, \
-                           ener_Euler, ener_AB2, ener_AB3, PLOTTO_649, writer, \
-                           ener_Euler_f, ener_AB2_f, ener_AB3_f, periodic, odd, even, \
+from sadourny_setup import flux_sw_ener, np, sys, time, ener_Euler, ener_AB2, \
+                           ener_AB3, PLOTTO_649, writer, ener_Euler_f,         \
+                           ener_AB2_f, ener_AB3_f, periodic, odd, even,         \
                            ener_Euler_f90, ener_AB2_f90, ener_AB3_f90
 
 
@@ -88,10 +88,10 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     t_final = time.time()
 
     # PLOTTING ==========================================================================
-    if Flux_Euler is ener_Euler_f:
-        PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
-    else:
-        PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')
+    # if Flux_Euler is ener_Euler_f:
+    #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
+    # else:
+    #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -131,5 +131,5 @@ if len(sys.argv) > 1:
     writer(t, method, sc)
 
 
-uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
+# uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
 # uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)
