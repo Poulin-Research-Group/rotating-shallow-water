@@ -44,13 +44,19 @@ f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw
 ```
 
 ## Running the code
-To test out the different methods in either `sadourny.py` or `sadourny_mpi.py`, call the `main` function using the different flux calculator & time steppers, and `sc` (scale) value. The methods that can be passed are:
+To test out the different methods in either `sadourny.py` or `sadourny_mpi.py`, call the `main` function using the different flux calculator & time steppers, and `sc` (scale) value. Some of the methods that can be passed are:
 
 - `ener_Euler`, `ener_Euler_f`, `ener_Euler_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method (energy conserving) using an Euler time stepping method
 - `ener_AB2`, `ener_AB2_f`, `ener_AB2_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method using a second-order Adams-Bashforth time stepping method
 - `ener_AB3`, `ener_AB3_f`, `ener_AB3_f90`: Numpy, (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method using a third-order Adams-Bashforth time stepping method
 
-**NOTE**: (f2py) Fortran 90 is not available for Approach 1 yet.
+Others are:
+
+- `ener_Euler_hybrid77`, `ener_Euler_hybrid90`: (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method, using a Numpy implementation of the Euler time stepping method
+- `ener_AB2_hybrid77`, `ener_AB2_hybrid90`: (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method, using a Numpy implementation of the second-order Adams-Bashforth time stepping method
+- `ener_AB3_hybrid77`, `ener_AB3_hybrid90`: (f2py) Fortran 77 and (f2py) Fortran 90 implementations of Sadourny's first method, using a Numpy implementation of the third-order Adams-Bashforth time stepping method
+
+**NOTE**: (f2py) Fortran 90 and the hybrid methods are not available for Approach 1 yet.
 
 For example, in `approach_2`, add the following lines of code to the bottom of either `sadourny.py` or `sadourny_mpi.py` to solve the RSW equations with Numpy and (f2py) Fortran 77 with a grid size of 128-by-128:
 

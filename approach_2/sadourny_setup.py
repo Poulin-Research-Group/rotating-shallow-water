@@ -5,12 +5,14 @@ import sys
 import time
 import os
 from mpi4py import MPI
-from flux_sw_ener   import euler_f as ener_Euler_f, \
-                           ab2_f as ener_AB2_f,      \
-                           ab3_f as ener_AB3_f
+from flux_sw_ener   import euler_f as ener_Euler_f77, \
+                           ab2_f as ener_AB2_f77,      \
+                           ab3_f as ener_AB3_f77,       \
+                           flux_ener as flux_ener_F77
 from flux_sw_ener90 import euler_f as ener_Euler_f90, \
                            ab2_f as ener_AB2_f90,      \
-                           ab3_f as ener_AB3_f90
+                           ab3_f as ener_AB3_f90,       \
+                           flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
 
 
@@ -189,12 +191,28 @@ def flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags):
 
 
 def ener_Euler(uvh, params, dims):
+    # pure Numpy
     NLnm, energy, enstr = flux_sw_ener(uvh, params, dims)
     uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
 
 
+def ener_Euler_hybrid77(uvh, params, dims):
+    # calculating flux in Fortran, updating solution in Numpy
+    NLnm, energy, enstr = flux_ener_F77(uvh, params)
+    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
+    return uvh, NLnm, energy, enstr
+
+
+def ener_Euler_hybrid90(uvh, params, dims):
+    # calculating flux in Fortran, updating solution in Numpy
+    NLnm, energy, enstr = flux_ener_F90(uvh, params)
+    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
+    return uvh, NLnm, energy, enstr
+
+
 def ener_Euler_MPI(uvh, params, dims, rank, p, col, tags):
+    # MPI'd pure Numpy
     NLnm, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
     uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
@@ -202,6 +220,18 @@ def ener_Euler_MPI(uvh, params, dims, rank, p, col, tags):
 
 def ener_AB2(uvh, NLnm, params, dims):
     NLn, energy, enstr = flux_sw_ener(uvh, params, dims)
+    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
+    return uvh, NLn, energy, enstr
+
+
+def ener_AB2_hybrid77(uvh, NLnm, params, dims):
+    NLn, energy, enstr = flux_ener_F77(uvh, params)
+    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
+    return uvh, NLn, energy, enstr
+
+
+def ener_AB2_hybrid90(uvh, NLnm, params, dims):
+    NLn, energy, enstr = flux_ener_F90(uvh, params)
     uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
     return uvh, NLn, energy, enstr
 
@@ -214,6 +244,18 @@ def ener_AB2_MPI(uvh, NLnm, params, dims, rank, p, col, tags):
 
 def ener_AB3(uvh, NLn, NLnm, params, dims):
     NL, energy, enstr  = flux_sw_ener(uvh, params, dims)
+    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+
+
+def ener_AB3_hybrid77(uvh, NLn, NLnm, params, dims):
+    NL, energy, enstr  = flux_ener_F77(uvh, params)
+    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+
+
+def ener_AB3_hybrid90(uvh, NLn, NLnm, params, dims):
+    NL, energy, enstr  = flux_ener_F90(uvh, params)
     uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 

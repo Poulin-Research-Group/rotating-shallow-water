@@ -1,15 +1,15 @@
-      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params)
+      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params,dims)
       implicit none
-      integer Nx, Ny
+      integer dims(2), Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, params
+cf2py intent(in) :: uvh, params, dims
 cf2py intent(hide) :: Nx, Ny
-cf2py intent(out) :: NLnm, ener, enst, uvh
+cf2py intent(out) :: uvh, NLnm, ener, enst
 
       call flux_ener(uvh,NLnm,ener,enst,Nx,Ny,params)
 
@@ -19,18 +19,18 @@ cf2py intent(out) :: NLnm, ener, enst, uvh
 
 
 c     calculate the flux and update the solution using AB2 step      
-      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params)
+      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params,dims)
       implicit none
-      integer Nx, Ny
+      integer dims(2), Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLnm, params
+cf2py intent(in) :: uvh, NLnm, params, dims
 cf2py intent(hide) :: Nx, Ny
-cf2py intent(out) :: NLn, ener, enst, uvh
+cf2py intent(out) :: uvh, NLn, ener, enst
 
       call flux_ener(uvh, NLn, ener, enst, Nx,Ny,params)
       call AB2(uvh, dt, NLn, NLnm, Nx, Ny)
@@ -39,18 +39,18 @@ cf2py intent(out) :: NLn, ener, enst, uvh
 
 
 c     calculate the flux and update the solution using AB3 step      
-      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params)
+      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params,dims)
       implicit none
-      integer Nx, Ny
+      integer dims(2), Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NL(3,Ny,Nx), NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLn,NLnm, params
+cf2py intent(in) :: uvh, NLn,NLnm, params, dims
 cf2py intent(hide) :: Nx, Ny
-cf2py intent(out) :: NL, ener, enst, uvh
+cf2py intent(out) :: uvh, NL, ener, enst
 
       call flux_ener(uvh, NL, ener, enst, Nx,Ny,params)
       call AB3(uvh, dt, NL, NLn, NLnm, Nx, Ny)
@@ -135,14 +135,14 @@ c     calculate h, U, V, B, q --> flux, energy, enstrophy.
       double precision U(0:Ny+1,0:Nx+1), V(0:Ny+1,0:Nx+1)
       double precision B(0:Ny+1,0:Nx+1), q(0:Ny+1,0:Nx+1)
 
-cf2py intent(in) :: uvh, params, inds
+cf2py intent(in) :: uvh, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: flux, ener, enst
 
       dx = params(1)
       dy = params(2)
-      gp = params(3)
-      f0 = params(4)
+      f0 = params(3)
+      gp = params(4)
       H0 = params(5)
 
 c     calc h
@@ -186,10 +186,10 @@ c     calc flux for h_t
       ! calculating energy and enstrophy
       ener = SUM(gp*h(1:Ny,1:Nx)**2 + 0.5*h(1:Ny,1:Nx)
      &     * (uvh(1, 1:Ny, 1:Nx)**2 + uvh(1, 1:Ny, 0:Nx-1)**2
-     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) ) / (2*Ny*Nx)
+     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) ) / (2.0*Ny*Nx)
 
       enst = SUM(q(1:Ny, 1:Nx)**2
-     &     * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8*Ny*Nx)
+     &     * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8.0*Ny*Nx)
 
       end
 
@@ -214,9 +214,9 @@ c     calc flux for h_t
       intent(out) :: uvh
 
       do k=1,3
-        uvh(k, 0, :) = uvh(k, Ny, :)
-        uvh(k, Ny+1, :) = uvh(k, 1, :)
-        uvh(k, :, 0) = uvh(k, :, Nx)
+        uvh(k, 0,    1:Nx) = uvh(k, Ny, 1:Nx)
+        uvh(k, Ny+1, 1:Nx) = uvh(k, 1,  1:Nx)
+        uvh(k, :, 0)    = uvh(k, :, Nx)
         uvh(k, :, Nx+1) = uvh(k, :, 1)
       enddo
 

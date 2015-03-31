@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, np, sys, time, ener_Euler, ener_AB2, \
-                           ener_AB3, PLOTTO_649, writer, ener_Euler_f,         \
-                           ener_AB2_f, ener_AB3_f, periodic, odd, even,         \
-                           ener_Euler_f90, ener_AB2_f90, ener_AB3_f90
+from sadourny_setup import flux_sw_ener, np, sys, time, ener_Euler, ener_AB2,     \
+                           ener_AB3, PLOTTO_649, plt, writer, ener_Euler_f77,      \
+                           ener_AB2_f77, ener_AB3_f77, periodic, odd, even,         \
+                           ener_Euler_f90, ener_AB2_f90, ener_AB3_f90,               \
+                           ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, \
+                           ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
@@ -91,7 +93,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     # if Flux_Euler is ener_Euler_f:
     #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
     # else:
-    #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-NUMPY.mp4')
+    # PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-HYBRID.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -109,7 +111,6 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     """
     # if Flux_Euler is ener_Euler_f: plt.savefig('./anims/ener-enst-FORTRAN.png')
     # else:                          plt.savefig('./anims/ener-enst-NUMPY.png')
-
     return t_final - t_start
 
 
@@ -121,9 +122,13 @@ if len(sys.argv) > 1:
     if method == 'numpy':
         t = main(ener_Euler, ener_AB2, ener_AB3, sc)
     elif method == 'f77':
-        t = main(ener_Euler_f, ener_AB2_f, ener_AB3_f, sc)
+        t = main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77, sc)
     elif method == 'f90':
         t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90, sc)
+    elif method == 'hybrid77':
+        t = main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77)
+    elif method == 'hybrid90':
+        t = main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90)
     else:
         raise Exception("Invalid method specified.")
 
@@ -131,5 +136,8 @@ if len(sys.argv) > 1:
     writer(t, method, sc)
 
 
-# uvh_N = main(ener_Euler, ener_AB2, ener_AB3)
-# uvh_F = main(ener_Euler_f, ener_AB2_f, ener_AB3_f)
+# print main(ener_Euler, ener_AB2, ener_AB3)
+# print main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77)
+# print main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90)
+# print main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, sc=1)
+# print main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90, sc=1)
