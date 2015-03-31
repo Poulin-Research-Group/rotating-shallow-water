@@ -3,10 +3,17 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import sys
 import time
+import os
 from mpi4py import MPI
-from flux_ener_components import calc_h, calc_u, calc_v, calc_b, calc_q, calc_flux_1, \
-                                 calc_flux_2, calc_flux_3, calc_energy, calc_enstrophy
-from flux_sw_ener import euler_f as ener_Euler_f, ab2_f as ener_AB2_f, ab3_f as ener_AB3_f
+from mpi4py import MPI
+from flux_sw_ener77 import euler_f as ener_Euler_f77, \
+                           ab2_f as ener_AB2_f77,      \
+                           ab3_f as ener_AB3_f77,       \
+                           flux_ener_f as flux_ener_F77
+# from flux_sw_ener90 import euler_f as ener_Euler_f90, \
+#                            ab2_f as ener_AB2_f90,      \
+#                            ab3_f as ener_AB3_f90,       \
+#                            flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
 
 
@@ -102,17 +109,9 @@ def flux_sw_ener(uvh, params, inds):
 def flux_sw_enst(uvh, params, inds):
 
     # Define parameters
-    dx = params.dx
-    dy = params.dy
-    gp = params.gp
-    f0 = params.f0
-    H0 = params.H0
-    Iu_i = inds.Iu_i
-    Iu_f = inds.Iu_f
-    Iv_i = inds.Iv_i
-    Iv_f = inds.Iv_f
-    Ih_i = inds.Ih_i
-    Ih_f = inds.Ih_f
+    dx, dy     = params[0], params[1]
+    f0, gp, H0 = params[2], params[3], params[4]
+    Iu_i, Iu_f, Iv_i, Iv_f, Ih_i, Ih_f = inds
 
     h = H0 + uvh[Ih_i:Ih_f]
     U = axp(h)*uvh[Iu_i:Iu_f, :]
@@ -134,45 +133,25 @@ def flux_sw_enst(uvh, params, inds):
     return flux, energy, enstrophy
 
 
-def flux_sw_ener_Fcomp(uvh, params, inds):
-
-    # Define parameters
-    dx = params.dx
-    dy = params.dy
-    gp = params.gp
-    f0 = params.f0
-    H0 = params.H0
-    Iu_i = inds.Iu_i
-    Iu_f = inds.Iu_f
-    Iv_i = inds.Iv_i
-    Iv_f = inds.Iv_f
-    Ih_i = inds.Ih_i
-    Ih_f = inds.Ih_f
-
-    # Turn off nonlinear terms
-    h = calc_h(uvh, H0, Ih_i)
-    U = calc_u(uvh, h)
-    V = calc_v(uvh, h, Iv_i, Iv_f)
-    B = calc_b(uvh, h, gp, Iv_i, Iv_f)
-    q = calc_q(uvh, h, dx, dy, f0, Iv_i, Iv_f)
-
-    # Compute fluxes
-    flux = np.vstack([calc_flux_1(q, V, B, dx),
-                      calc_flux_2(q, U, B, dy),
-                      calc_flux_3(U, V, dx, dy)])
-
-    # compute energy and enstrophy
-    energy = calc_energy(uvh, h, gp, Iv_i, Iv_f)
-    enstrophy = calc_enstrophy(h, q)
-
-    return flux, energy, enstrophy
-
-
 def ener_Euler(uvh, params, inds):
     NLnm, energy, enstr = flux_sw_ener(uvh, params, inds)
     uvh = euler(uvh, params[5], NLnm)
     return uvh, NLnm, energy, enstr
 
+
+def ener_Euler_hybrid77(uvh, params, inds):
+    # calculating flux in Fortran 77, updating solution in Numpy
+    NLnm, energy, enstr = flux_ener_F77(uvh, params, inds)
+    uvh = euler(uvh, params[5], NLnm)
+    return uvh, NLnm, energy, enstr
+
+"""
+def ener_Euler_hybrid90(uvh, params, inds):
+    # calculating flux in Fortran 90, updating solution in Numpy
+    NLnm, energy, enstr = flux_ener_F90(uvh, params, inds)
+    uvh = euler(uvh, params[5], NLnm)
+    return uvh, NLnm, energy, enstr
+"""
 
 def ener_AB2(uvh, NLnm, params, inds):
     NLn, energy, enstr = flux_sw_ener(uvh, params, inds)
@@ -180,11 +159,35 @@ def ener_AB2(uvh, NLnm, params, inds):
     return uvh, NLn, energy, enstr
 
 
+def ener_AB2_hybrid77(uvh, NLnm, params, inds):
+    NLn, energy, enstr = flux_ener_F77(uvh, params, inds)
+    uvh = ab2(uvh, params[5], NLn, NLnm)
+    return uvh, NLn, energy, enstr
+
+"""
+def ener_AB2_hybrid90(uvh, NLnm, params, inds):
+    NLn, energy, enstr = flux_ener_F90(uvh, params, inds)
+    uvh = ab2(uvh, params[5], NLn, NLnm)
+    return uvh, NLn, energy, enstr
+"""
+
 def ener_AB3(uvh, NLn, NLnm, params, inds):
     NL, energy, enstr = flux_sw_ener(uvh, params, inds)
     uvh = ab3(uvh, params[5], NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
+
+def ener_AB3_hybrid77(uvh, NLn, NLnm, params, inds):
+    NL, energy, enstr  = flux_ener_F77(uvh, params, inds)
+    uvh = ab3(uvh, params[5], NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+
+"""
+def ener_AB3_hybrid90(uvh, NLn, NLnm, params, inds):
+    NL, energy, enstr  = flux_ener_F90(uvh, params, inds)
+    uvh = ab3(uvh, params[5], NL, NLn, NLnm)
+    return uvh, NL, energy, enstr
+"""
 
 def set_mpi_bdr(uvh, rank, p, mx, col, tags):
     """
@@ -427,3 +430,16 @@ def PLOTTO_649(UVHG, xG, yG, Ny, N, output_name):
 
     im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
     im_ani.save(output_name)
+
+
+def writer(t_total, method, sc):
+    filename = './tests/%s/sc-%d.txt' % (method, sc)
+
+    # check to see if file exists; if it doesn't, create it.
+    if not os.path.exists(filename):
+        open(filename, 'a').close()
+
+    # write time to the file
+    F = open(filename, 'a')
+    F.write('%f\n' % t_total)
+    F.close()

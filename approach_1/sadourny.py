@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-from sadourny_setup import np, sys, time, PLOTTO_649, Inds, ener_Euler, \
-                           ener_AB2, ener_AB3, ener_Euler_f, ener_AB2_f, \
-                           ener_AB3_f
+from sadourny_setup import np, sys, time, PLOTTO_649, writer, ener_Euler,       \
+                           ener_AB2, ener_AB3, ener_Euler_f77, ener_AB2_f77,     \
+                           ener_AB3_f77, ener_Euler_hybrid77, ener_AB2_hybrid77,  \
+                           ener_AB3_hybrid77
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
@@ -109,8 +110,28 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc):
     # return t_total
 
 
-print 'pure numpy'
-main(ener_Euler, ener_AB2, ener_AB3, 1)
+if len(sys.argv) > 1:
+    argv = sys.argv[1:]
+    method = argv[0]     # either Numpy, F77, F90
+    sc = int(argv[1])
 
-print '\npure fortran'
-main(ener_Euler_f, ener_AB2_f, ener_AB3_f, 1)
+    if method == 'numpy':
+        t = main(ener_Euler, ener_AB2, ener_AB3, sc)
+    elif method == 'f77':
+        t = main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77, sc)
+    # elif method == 'f90':
+    #     t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90, sc)
+    elif method == 'hybrid77':
+        t = main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77)
+    # elif method == 'hybrid90':
+    #     t = main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90)
+    else:
+        raise Exception("Invalid method specified.")
+
+    print t
+    writer(t, method, sc)
+
+
+main(ener_Euler, ener_AB2, ener_AB3, 1)
+main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77, 1)
+main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, 1)

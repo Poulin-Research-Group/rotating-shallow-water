@@ -174,7 +174,7 @@ c     calc flux for u_t
      &                  - (B(1:Ny,2:Nx+1) - B(1:Ny,1:Nx)) / dx
 
 c     calc flux for v_t
-      flux(2,1:Ny,1:Nx) = ( q(1:Ny,0:Nx-1) * (U(2:Ny,0:Nx-1) + U(1:Ny,0:Nx-1))
+      flux(2,1:Ny,1:Nx) = -(q(1:Ny,0:Nx-1) * (U(2:Ny,0:Nx-1) + U(1:Ny,0:Nx-1))
      &                  +   q(1:Ny,1:Nx)   * (U(2:Ny+1,1:Nx) + U(1:Ny,1:Nx))) *0.25
      &                  - (B(2:Ny+1,1:Nx) - B(1:Ny,1:Nx)) / dy
 
@@ -186,10 +186,10 @@ c     calc flux for h_t
       ! calculating energy and enstrophy
       ener = SUM(gp*h(1:Ny,1:Nx)**2 + 0.5*h(1:Ny,1:Nx)
      &     * (uvh(1, 1:Ny, 1:Nx)**2 + uvh(1, 1:Ny, 0:Nx-1)**2
-     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) ) / (2.0*Ny*Nx)
+     &     +  uvh(2, 1:Ny, 1:Nx)**2 + uvh(2, 0:Ny-1, 1:Nx)**2) ) / (2*Ny*Nx)
 
       enst = SUM(q(1:Ny, 1:Nx)**2
-     &     * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8.0*Ny*Nx)
+     &     * (h(2:Ny+1, 2:Nx+1) + h(2:Ny+1, 1:Nx) +  h(1:Ny, 2:Nx+1) + h(1:Ny,1:Nx)) ) / (8*Ny*Nx)
 
       end
 
@@ -214,9 +214,9 @@ c     calc flux for h_t
       intent(out) :: uvh
 
       do k=1,3
-        uvh(k, 0,    1:Nx) = uvh(k, Ny, 1:Nx)
-        uvh(k, Ny+1, 1:Nx) = uvh(k, 1,  1:Nx)
-        uvh(k, :, 0)    = uvh(k, :, Nx)
+        uvh(k, 0, :) = uvh(k, Ny, :)
+        uvh(k, Ny+1, :) = uvh(k, 1, :)
+        uvh(k, :, 0) = uvh(k, :, Nx)
         uvh(k, :, Nx+1) = uvh(k, :, 1)
       enddo
 

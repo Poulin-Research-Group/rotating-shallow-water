@@ -5,7 +5,7 @@ import sys
 import time
 import os
 from mpi4py import MPI
-from flux_sw_ener   import euler_f as ener_Euler_f77, \
+from flux_sw_ener77 import euler_f as ener_Euler_f77, \
                            ab2_f as ener_AB2_f77,      \
                            ab3_f as ener_AB3_f77,       \
                            flux_ener as flux_ener_F77
