@@ -11,7 +11,7 @@ Padding the solution matrix with two extra rows (one on top, one on bottom) and 
 Before running the Python code, the Fortran code must be compiled using f2py. This is done using the following commands:
 
 ```
-f2py -c -m flux_sw_ener flux_sw_ener.f
+f2py -c -m flux_sw_ener77 flux_sw_ener.f
 f2py --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw_ener.f90
 ```
 
@@ -20,7 +20,7 @@ The Fortran 90 code MUST be compiled with the `--f90flags=-ffixed-line-length-0`
 To optimize the code, you can tell f2py to use optimization flags that are available in the gfortran compiler, such as `O3`:
 
 ```
-f2py --opt=-O3 -c -m flux_sw_ener flux_sw_ener.f
+f2py --opt=-O3 -c -m flux_sw_ener77 flux_sw_ener.f
 f2py --opt=-O3 --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw_ener.f90
 ```
 
@@ -39,7 +39,7 @@ ulimit -s unlimited
 Now you can compile using the `Ofast` flag like so:
 
 ```
-f2py --opt=-Ofast -c -m flux_sw_ener flux_sw_ener.f
+f2py --opt=-Ofast -c -m flux_sw_ener77 flux_sw_ener.f
 f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw_ener.f90
 ```
 

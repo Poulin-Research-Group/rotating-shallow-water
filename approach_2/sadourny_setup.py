@@ -14,6 +14,7 @@ from flux_sw_ener90 import euler_f as ener_Euler_f90, \
                            ab3_f as ener_AB3_f90,       \
                            flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
+# see bottom of file for other defined constants.
 
 
 def I(A):
@@ -428,3 +429,9 @@ def set_mpi_bc(mat, rank, p, col, tags):
         mat[:, 0] = col
 
     return mat
+
+
+METHODS = ['numpy', 'f2py-f77', 'f2py-f90', 'hybrid77', 'hybrid90']
+EULERS  = [ener_Euler, ener_Euler_f77, ener_Euler_f90, ener_Euler_hybrid77, ener_Euler_hybrid90]
+AB2S    = [ener_AB2, ener_AB2_f77, ener_AB2_f90, ener_AB2_hybrid77, ener_AB2_hybrid90]
+AB3S    = [ener_AB3, ener_AB3_f77, ener_AB3_f90, ener_AB3_hybrid77, ener_AB3_hybrid90]

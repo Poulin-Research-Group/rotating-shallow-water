@@ -4,7 +4,8 @@ from sadourny_setup import flux_sw_ener, np, sys, time, ener_Euler, ener_AB2,   
                            ener_AB2_f77, ener_AB3_f77, periodic, odd, even,         \
                            ener_Euler_f90, ener_AB2_f90, ener_AB3_f90,               \
                            ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, \
-                           ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90
+                           ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90,  \
+                           METHODS, EULERS, AB2S, AB3S
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
@@ -109,28 +110,19 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     ax2.set_title('Enstrophy')
     plt.show()
     """
-    # if Flux_Euler is ener_Euler_f: plt.savefig('./anims/ener-enst-FORTRAN.png')
-    # else:                          plt.savefig('./anims/ener-enst-NUMPY.png')
     return t_final - t_start
 
 
 if len(sys.argv) > 1:
-    argv = sys.argv[1:]
-    method = argv[0]     # either Numpy, F77, F90
+    argv   = sys.argv[1:]
+    method = argv[0]
     sc = int(argv[1])
 
-    if method == 'numpy':
-        t = main(ener_Euler, ener_AB2, ener_AB3, sc)
-    elif method == 'f77':
-        t = main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77, sc)
-    elif method == 'f90':
-        t = main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90, sc)
-    elif method == 'hybrid77':
-        t = main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77)
-    elif method == 'hybrid90':
-        t = main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90)
+    if method in METHODS:
+        i = METHODS.index(method)
+        t = main(EULERS[i], AB2S[i], AB3S[i], sc)
     else:
-        raise Exception("Invalid method specified.")
+        raise Exception("Invalid method specified. Pick one of: " + ", ".join(METHODS))
 
     print t
     writer(t, method, sc)
