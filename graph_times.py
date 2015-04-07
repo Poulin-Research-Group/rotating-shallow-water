@@ -2,11 +2,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def get_mean_time(approach, method, sc):
+def get_mean_time(approach, method, sc, opt=None):
     # approach = 1, 2
     # method = 'numpy', 'f77', 'f90'
     # sc = 1, 2, 4...
-    times = np.loadtxt('./approach_%d/tests/%s/sc-%d.txt' % (approach, method, sc))
+    if opt is None:
+        filename = './approach_%d/tests/%s/sc-%d.txt' % (approach, method, sc)
+    else:
+        filename = './approach_%d/tests/%s/%s/sc-%d.txt' % (approach, method, opt, sc)
+    times = np.loadtxt(filename)
     return np.mean(times)
 
 
@@ -15,26 +19,35 @@ def add_point_labels(x, y):
         plt.annotate('%.2f' % tup[1], xy=tup)
 
 
-def graph(approach):
-    methods = ['numpy', 'f2py-f77', 'f2py-f90']
-    scs     = [1, 2, 4, 8, 16]
-    y_data  = dict(zip(methods, [[] for i in xrange(5)]))
+def graph(approach, scs, opt):
+    methods = ['numpy', 'f2py-f77', 'f2py-f90', 'hybrid77', 'hybrid90', 'f77']
+    methodsFortran = methods[1:]
+    y_data  = dict(zip(methods, [[] for i in xrange(len(methods))]))
 
-    for method in methods:
+    # handle numpy data
+    for sc in scs:
+        mean_time = get_mean_time(approach, 'numpy', sc)
+        y_data['numpy'].append(mean_time)
+
+    # handle Fortran data
+    for method in methodsFortran:
         for sc in scs:
-            mean_time = get_mean_time(approach, method, sc)
+            mean_time = get_mean_time(approach, method, sc, opt)
             y_data[method].append(mean_time)
 
         plt.plot(scs, y_data[method], label=method)
-        add_point_labels(scs[3:], y_data[method][3:])
+        add_point_labels(scs, y_data[method])
 
     plt.xlim([0,  scs[-1] + 0.5])
     plt.xlabel('$sc$ ($N=128sc$, grid size is $N\\times N$ )')
     plt.ylabel('Average time (s)')
-    plt.title('Average time of solving the Rotating Shallow Water equations in 2D')
+    plt.title('Average time of solving the Rotating Shallow Water equations in 2D\nCompiled using %s' % opt)
     plt.legend(loc='best')
-    plt.savefig('./approach_%d/graphs/times_new.pdf' % approach)
-    # plt.show()
+    plt.savefig('./approach_%d/graphs/times_%s.pdf' % (approach, opt))
+    plt.clf()
 
 
-graph(2)
+scs = [1, 2]
+graph(2, scs, 'O0')
+graph(2, scs, 'O3')
+graph(2, scs, 'Ofast')

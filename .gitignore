@@ -10,3 +10,5 @@ libs/
 **/*.log
 
 .ipynb_checkpoints/
+
+approach_2/flux_ener_F

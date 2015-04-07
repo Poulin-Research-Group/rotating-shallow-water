@@ -83,7 +83,7 @@ Running the command
 bash run_tests.sh
 ```
 
-will create a `tests` directory and other directories in the approach's directory, and then Numpy, (f2py) F77 and (f2py) F90 implementations of the solver will be run. This will run 10 trials for grid sizes 128-by-128, 256-by-256, and 512-by-512, and 2 trials for grid sizes 1024-by-1024 and 2048-by-2048.
+will create a `tests` directory and other directories in the approach's directory, and then Numpy, (f2py) F77, (f2py) F90, the two hybrid methods, and pure Fortran 77 implementations of the solver will be run. This will run 10 trials for grid sizes 128-by-128, 256-by-256, and 512-by-512, and 2 trials for grid sizes 1024-by-1024 and 2048-by-2048.
 
 
 ## TODO

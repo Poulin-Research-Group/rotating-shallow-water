@@ -369,8 +369,11 @@ def PLOTTO_649(UVHG, xG, yG, Nt, output_name, MPI=False):
     im_ani.save(output_name)
 
 
-def writer(t_total, method, sc):
-    filename = './tests/%s/sc-%d.txt' % (method, sc)
+def writer(t_total, method, sc, opt=None):
+    if opt:
+        filename = './tests/%s/%s/sc-%d.txt' % (method, opt, sc)
+    else:
+        filename = './tests/%s/sc-%d.txt' % (method, sc)
 
     # check to see if file exists; if it doesn't, create it.
     if not os.path.exists(filename):

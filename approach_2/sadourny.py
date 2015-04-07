@@ -117,6 +117,7 @@ if len(sys.argv) > 1:
     argv   = sys.argv[1:]
     method = argv[0]
     sc = int(argv[1])
+    opt = argv[2] if len(argv) == 3 else None
 
     if method in METHODS:
         i = METHODS.index(method)
@@ -125,7 +126,7 @@ if len(sys.argv) > 1:
         raise Exception("Invalid method specified. Pick one of: " + ", ".join(METHODS))
 
     print t
-    writer(t, method, sc)
+    writer(t, method, sc, opt)
 
 
 # print main(ener_Euler, ener_AB2, ener_AB3)

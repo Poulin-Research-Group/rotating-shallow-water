@@ -29,7 +29,7 @@ c     arrays
       integer dims(2)
       integer r, c, t, k
 
-      write(6,*) "Nx, Ny, Nt", Nx, Ny, Nt
+      ! write(6,*) "Nx, Ny, Nt", Nx, Ny, Nt
       
 c     domain length 
       Lx = 200e3
