@@ -11,4 +11,5 @@ libs/
 
 .ipynb_checkpoints/
 
-approach_2/flux_ener_F
+approach_2/flux_ener_F77
+approach_2/flux_ener_F90

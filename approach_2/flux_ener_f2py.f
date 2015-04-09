@@ -1,106 +1,3 @@
-      program sadourny
-      implicit none
-      
-      double precision Lx, Ly, dx, dy
-      double precision f0, gp, H0, hmax
-      double precision params(6)
-
-c     spatial parameters
-      integer sc, Nx, Ny, Nt, Ny2, Ny3
-      parameter (sc=1)
-      parameter (Nx=128*sc)
-      parameter (Ny=128*sc)
-      parameter (Ny2=2*Ny)
-      parameter (Ny3=3*Ny)
-
-c     temporal parameters
-      double precision dt, t0, tf
-      parameter (t0 = 0.0)
-      parameter (tf = 3600.0)
-      parameter (dt = 5.0/sc)
-      parameter (Nt = (tf - t0)/dt)
-
-c     arrays
-      double precision uvh(3,0:Ny+1,0:Nx+1)
-      double precision NL(3,Ny,Nx), NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
-      double precision x(Nx), y(Ny), xs(Nx), ys(Ny)
-      double precision ener(Nt), enst(Nt)
-      
-      integer dims(2)
-      integer r, c, t, k
-
-      ! write(6,*) "Nx, Ny, Nt", Nx, Ny, Nt
-      
-c     domain length 
-      Lx = 200e3
-      Ly = 200e3
-
-c     compute grid
-      dx = Lx/Nx
-      dy = Ly/Ny
-
-      do r=1,Ny
-         y(r)  = -Ly/2 + (r-1)*dy
-         ys(r) = -Ly/2 + (r-0.5)*dy
-      enddo
-      
-      do c=1,Nx
-         x(c)  = -Lx/2 + (c-1)*dx
-         xs(c) = -Lx/2 + (c-0.5)*dx
-      enddo
-
-c     Physical parameters
-      f0 = 1e-4
-      gp = 9.81
-      H0 = 500.
-
-c     store parameters in a vector
-      params(1) = dx
-      params(2) = dy
-      params(3) = f0
-      params(4) = gp
-      params(5) = H0
-      params(6) = dt
-
-c     Specify Initial Conditions
-      hmax = 10.0
-      do k=1,3
-        do c=0,Nx+1
-           do r=0,Ny+1
-              uvh(k, r, c) = 0.0
-              uvh(k, r, c) = 0.0
-              uvh(k, r, c) = hmax*exp(-(x(c)**2 + y(r)**2)/(Lx/6.0)**2)
-           enddo
-        enddo
-      enddo
-
-      
-c     Euler solution
-      call euler_F(uvh,NLnm,ener(1),enst(1),Nx,Ny,params,dims)
-      
-c     AB2 solution
-      call AB2_F(uvh,NLn,NLnm,ener(2),enst(2),Nx,Ny,params,dims)
-
-c     loop through time
-      do t=3,Nt
-c       AB3 solution
-        call ab3_F(uvh,NL,NLn,NLnm,ener(t),enst(t),Nx,Ny,params,dims)
-
-c       reset fluxes
-        do k=1,3
-          do c=1,Nx
-            do r=1,Ny
-              NLnm(k,r,c) = NLn(k,r,c)
-              NLn(k,r,c)  = NL(k,r,c)
-            enddo
-          enddo
-        enddo
-         
-      enddo
-
-      stop
-      end
-
       subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params,dims)
       implicit none
       integer dims(2), Nx, Ny
@@ -337,7 +234,7 @@ c     calc energy and enstrophy
             ener = ener + gp*h(r,c)*h(r,c) + 0.5*h(r,c)
      &           * (uvh(1,r,c)*uvh(1,r,c) + uvh(1,r,c-1)*uvh(1,r,c-1)
      &           +  uvh(2,r,c)*uvh(2,r,c) + uvh(2,r-1,c)*uvh(2,r-1,c))
-            
+
             enst = enst + q(r,c)*q(r,c) 
      &           * (h(r+1,c+1) + h(r+1,c) + h(r,c+1) + h(r,c))
        enddo
@@ -380,6 +277,42 @@ c     calc energy and enstrophy
         do r=0,Ny+1
           uvh(k,r,0) = uvh(k,r,Nx)
           uvh(k,r,Nx+1) = uvh(k,r,1)
+        enddo
+      enddo
+
+      end
+
+      subroutine maximum(A, Nx, Ny, res)
+      implicit none
+      double precision A(Nx, Ny), res
+      integer Nx, Ny, c, r
+      res = 0.0
+
+      do c=1,Nx
+        do r=1,Ny
+          if (ISNAN(A(r,c))) then
+            res = A(r,c)
+          else if (A(r,c) > res) then
+            res = A(r,c)
+          end if
+        enddo
+      enddo
+
+      end
+
+      subroutine maximum_ghost(A, Nx, Ny, res)
+      implicit none
+      double precision A(0:Nx+1, 0:Ny+1), res
+      integer Nx, Ny, c, r
+      res = 0
+
+      do c=0,Nx+1
+        do r=0,Ny+1
+          if (ISNAN(A(r,c))) then
+            res = A(r,c)
+          else if (A(r,c) > res) then
+            res = A(r,c)
+          end if
         enddo
       enddo
 

@@ -7,6 +7,7 @@ if [ ! -d "tests" ]; then
   mkdir -p tests/hybrid77/O0 tests/hybrid77/O3 tests/hybrid77/Ofast 
   mkdir -p tests/hybrid90/O0 tests/hybrid90/O3 tests/hybrid90/Ofast 
   mkdir -p tests/f77/O0 tests/f77/O3 tests/f77/Ofast
+  mkdir -p tests/f90/O0 tests/f90/O3 tests/f90/Ofast
 fi
 
 function test_python () {
@@ -61,11 +62,16 @@ function test_fortran () {
 
   file_f77=tests/f77/$opt/sc-$sc.txt
   file_f90=tests/f90/$opt/sc-$sc.txt
-  echo $file_f77
 
   echo f77
   for ((i=0; i<$T; i++)) do
-    /usr/bin/time -f "%U" -a -o $file_f77 ./flux_ener_F    # should it be "%e" instead??
+    /usr/bin/time -f "%U" -a -o $file_f77 ./flux_ener_F77    # should it be "%e" instead??
+  done
+  echo
+
+  echo f90
+  for ((i=0; i<$T; i++)) do
+    /usr/bin/time -f "%U" -a -o $file_f90 ./flux_ener_F90
   done
   echo
 }
@@ -78,9 +84,10 @@ function opt_tests () {
 
   echo "$opt optimization ------"
 
-  f2py --opt=-$opt -c -m flux_sw_ener77 flux_sw_ener.f 2>/dev/null 1>&2
-  f2py --opt=-$opt --f90flags=-ffixed-line-length-0 -c -m  flux_sw_ener90 flux_sw_ener.f90 2>/dev/null 1>&2
-  gfortran -$opt flux_sw_ener.f -o flux_ener_F
+  f2py --opt=-$opt -c -m flux_ener_f2py77 flux_ener_f2py.f 2>/dev/null 1>&2
+  f2py --opt=-$opt --f90flags=-ffixed-line-length-0 -c -m  flux_ener_f2py90 flux_ener_f2py.f90 2>/dev/null 1>&2
+  gfortran -$opt flux_ener.f -o flux_ener_F77
+  gfortran -$opt -ffixed-line-length-0 flux_ener.f90 -o flux_ener_F90
 
   test_f2py $sc $T $opt
   test_fortran $sc $T $opt

@@ -11,15 +11,21 @@ try:
 except ValueError:
     sc_old, sc_new = 1, 2
 
-# read in the script
-FILE = open('./flux_sw_ener.f')
-script = FILE.read()
-FILE.close()
 
-# replace sc with given value
-script = script.replace('parameter (sc=%s)' % sc_old, 'parameter (sc=%s)' % sc_new)
+def replace_sc(filename):
+    # read in the script
+    FILE = open('./%s' % filename)
+    script = FILE.read()
+    FILE.close()
 
-# write out the script
-FILE = open('./flux_sw_ener.f', 'w')
-FILE.write(script)
-FILE.close()
+    # replace sc with given value
+    script = script.replace('parameter (sc=%s)' % sc_old, 'parameter (sc=%s)' % sc_new)
+
+    # write out the script
+    FILE = open('./%s' % filename, 'w')
+    FILE.write(script)
+    FILE.close()
+
+
+replace_sc('flux_ener.f')
+replace_sc('flux_ener.f90')

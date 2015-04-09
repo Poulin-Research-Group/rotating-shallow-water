@@ -5,14 +5,14 @@ import sys
 import time
 import os
 from mpi4py import MPI
-from flux_sw_ener77 import euler_f as ener_Euler_f77, \
-                           ab2_f as ener_AB2_f77,      \
-                           ab3_f as ener_AB3_f77,       \
-                           flux_ener as flux_ener_F77
-from flux_sw_ener90 import euler_f as ener_Euler_f90, \
-                           ab2_f as ener_AB2_f90,      \
-                           ab3_f as ener_AB3_f90,       \
-                           flux_ener as flux_ener_F90
+from flux_ener_f2py77 import euler_f as ener_Euler_f77, \
+                             ab2_f as ener_AB2_f77,      \
+                             ab3_f as ener_AB3_f77,       \
+                             flux_ener as flux_ener_F77
+from flux_ener_f2py90 import euler_f as ener_Euler_f90, \
+                             ab2_f as ener_AB2_f90,      \
+                             ab3_f as ener_AB3_f90,       \
+                             flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
 # see bottom of file for other defined constants.
 
