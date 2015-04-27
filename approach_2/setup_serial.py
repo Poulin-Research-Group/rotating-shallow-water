@@ -1,3 +1,4 @@
+from __future__ import division
 from sadourny_setup import I, I_XP, I_XN, I_YP, I_YN, I_XP_YP, I_XP_YN, I_XN_YP, \
                            euler, ab2, ab3, np
 from flux_ener_f2py77 import euler_f as ener_Euler_f77, \

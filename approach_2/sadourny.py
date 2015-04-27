@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import division
 from setup_serial import flux_sw_ener, np, ener_Euler, ener_AB2,     \
                            ener_AB3, ener_Euler_f77,      \
                            ener_AB2_f77, ener_AB3_f77,     \
@@ -106,7 +107,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     x = np.append(-1, np.append(x, -1))
     y = np.append(-1, np.append(y, -1))
 
-    mesh_animator(H, x, y, Nx, Ny, Nt+1, 1, 1, 1, './anims', 'PLEASE_WORK.mp4')
+    mesh_animator(H, x, y, Nx, Ny, Nt+1, 1, 1, 1, './anims', 'PLEASE_WORK_HYBRID90.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -141,8 +142,9 @@ if len(sys.argv) > 1:
     writer(t, method, sc, opt)
 """
 
-print main(ener_Euler, ener_AB2, ener_AB3)
+# print main(ener_Euler, ener_AB2, ener_AB3)
 # print main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77)
 # print main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90)
 # print main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, sc=1)
-# print main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90, sc=1)
+print main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90, sc=1)
+# f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m flux_ener_f2py90 flux_ener_f2py.f90
