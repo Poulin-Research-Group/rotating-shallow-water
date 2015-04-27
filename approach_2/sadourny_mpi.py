@@ -1,22 +1,35 @@
 #!/usr/bin/env python
-from sadourny_setup import gather_uvh, set_uvh_bdr, create_global_objects, np, \
-                           sys, time, MPI, comm, PLOTTO_649, ener_Euler_MPI,    \
-                           ener_AB2_MPI, ener_AB3_MPI
+from __future__ import division
+from setup_mpi import set_uvh_bdr_1D, create_global_objects, np, \
+                      comm, ener_Euler_MPI,    \
+                      ener_AB2_MPI, ener_AB3_MPI, solver_1D_helper
+from fjp_helpers.mpi import create_tags, create_ranks, send_cols_periodic
+from fjp_helpers.animator import mesh_animator
+from fjp_helpers.bc import set_periodic_BC_y
+from sadourny_setup import Params
 
 
-def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
+def main(Flux_Euler, Flux_AB2, Flux_AB3, px, py, sc=1):
+
+    # currently, this is only testing px = 4, py = 1.
+    # if that works, then simple modifications to the script will allow
+    # px = 1 and py = 4.
+    MPI_Func = send_cols_periodic
+    BC_Func  = set_periodic_BC_y
 
     # mpi stuff
     p = comm.Get_size()      # number of processors
     rank = comm.Get_rank()   # this process' ID
-    tags = dict([(j, j+5) for j in xrange(p)])
+    tags = create_tags(p)[:2]
+    ranks = create_ranks(rank, p, px, py)[:3]
 
     # DEFINING SPATIAL, TEMPORAL AND PHYSICAL PARAMETERS ================================
     # Grid Parameters
     Lx, Ly  = 200e3, 200e3
     Nx, Ny  = 128*sc, 128*sc
     dx, dy  = Lx/Nx, Ly/Ny
-    nx = Nx / p
+    nx = Nx / px
+    ny = Ny / py
 
     # Define numerical method,geometry and grid
     # geometry = channel #periodic
@@ -52,7 +65,15 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
 
     # construct the placeholder for parameters
     params = np.array([dx, dy, f0, gp, H0, dt])
-    dims   = np.array([nx, Ny])
+    params = Params()
+    params.set_x_vars([x0, xf, dx, Nx, nx])
+    params.set_y_vars([y0, yf, dy, Ny, ny])
+    params.set_t_vars([t0, tf, dt, Nt])
+    params.set_p_vars([p, px, py])
+    params.set_consts([f0, gp, H0])
+    params.euler, params.ab2, params.ab3 = Flux_Euler, Flux_AB2, Flux_AB3
+    params.MPI_Func = MPI_Func
+    params.BC_Func  = BC_Func
 
     # allocate space to communicate the ghost columns
     col = np.empty(Ny+2, dtype='d')
@@ -69,44 +90,29 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     uvhG, UVHG = create_global_objects(rank, xG, y, Nx, Ny, Nt, dx, hmax, Lx)
 
     # Impose BCs
-    uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
+    uvh = set_uvh_bdr_1D(uvh, ranks, px, col, tags, MPI_Func, BC_Func)
 
     # Define arrays to store conserved quantitites: energy and enstrophy
     energy, enstr = np.zeros(Nt), np.zeros(Nt)
 
-    comm.Barrier()         # start MPI timer
-    t_start = MPI.Wtime()
-
-    # BEGIN SOLVING =====================================================================
-    # Euler step
-    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, dims, rank, p, col, tags)
-    uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
-    UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, 1)      # add uvh to global soln
-
-    # AB2 step
-    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, dims, rank, p, col, tags)
-    uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
-    UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, 2)
-
-    # loop through time
-    for n in range(3, Nt):
-        # AB3 step
-        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, dims, rank, p, col, tags)
-
-        # Reset fluxes
-        NLnm, NLn = NLn, NL
-
-        uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
-        UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n)
-
-    comm.Barrier()
-    t_final = (MPI.Wtime() - t_start)  # stop MPI timer
+    # SOLVING =====================================================================
+    t_total, UVHG = solver_1D_helper(uvh, energy, enstr, ranks, col, tags, params)
 
     if rank == 0:
-        print t_final
+        print t_total
 
         # PLOTTING ======================================================================
-        PLOTTO_649(UVHG, xG, y, Nt, './anims/sadourny_mpi_%d.mp4' % p, True)
+        H = np.empty((Ny*Nx, Nt), dtype='d')
+        for i in xrange(Nt):
+            temp = np.array_split(UVHG[:, i], p)
+            temp = [np.array_split(part, 3)[2] for part in temp]
+            print np.hstack(temp)
+            H[:, i] = np.hstack(temp)
+
+        xG = np.append(-1, np.append(xG, -1))
+        y = np.append(-1, np.append(y, -1))
+
+        mesh_animator(H, xG, y, nx, ny, Nt, p, px, py, './anims', 'PLEASE_WORK_MPI_4px_1py.mp4')
 
         # print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
         # print "Error in enstrophy is ", np.amax(enstr-enstr[0])/enstr[0]
@@ -122,4 +128,4 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
         plt.show()
         """
 
-main(ener_Euler_MPI, ener_AB2_MPI, ener_AB3_MPI, 1)
+main(ener_Euler_MPI, ener_AB2_MPI, ener_AB3_MPI, 4, 1)

@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 from mpi4py import MPI
 from sadourny_setup import I, I_XP, I_XN, I_YP, I_YN, I_XP_YP, I_XP_YN, I_XN_YP, \
@@ -11,48 +12,83 @@ from flux_ener_f2py90 import euler_f as ener_Euler_f90, \
                              ab3_f as ener_AB3_f90,       \
                              flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
+np.seterr(all='raise')
 
 
-def solver_1D_helper(u, ranks, ghost_arr, tags, params):
+def solver_MPI():
+    pass
 
 
-    f0, gp, H0 = params.consts
+def solver_1D_helper(uvh, energy, enstr, ranks, ghost_arr, tags, params):
+    Flux_Euler, Flux_AB2, Flux_AB3 = params.euler, params.ab2, params.ab3
+    x0, xf, dx, Nx, nx = params.x_vars
+    y0, yf, dy, Ny, ny = params.y_vars
+    p, px, py = params.p_vars
+    MPI_Func  = params.MPI_Func
+    BC_Func   = params.BC_Func
+    Nt = params.Nt
+
+    rank = ranks[0]
+
+    Lx = 200e3
+    hmax = 1.0
+
+    xG = np.linspace(x0+dx/2, xf-dx/2, Nx)    # global x points
+    y  = np.linspace(y0 + dy/2, yf - dy/2, Ny)
+
+    uvhG, UVHG = create_global_objects(rank, xG, y, Nx, Ny, Nt, dx, hmax, Lx)
 
     comm.Barrier()         # start MPI timer
     t_start = MPI.Wtime()
 
     # Euler step
-    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, params, dims, rank, p, col, tags)
-    uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
+    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, ranks, px, ghost_arr, tags, params)
+    uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+    comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
+    if rank == 0:
+        UVHG[:, 1] = uvhG
 
     # AB2 step
-    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, params, dims, rank, p, col, tags)
-    uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
+    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, ranks, px, ghost_arr, tags, params)
+    uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+    comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
+    if rank == 0:
+        UVHG[:, 2] = uvhG
 
-     # loop through time
+    # loop through time
     for n in range(3, Nt):
         # AB3 step
-        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, params, dims, rank, p, col, tags)
+        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, ranks, px, ghost_arr, tags, params)
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
 
-        uvh = set_uvh_bdr(uvh, rank, p, nx, col, tags)
-        UVHG = gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n)
+        uvh  = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+        comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
+        if rank == 0:
+            UVHG[:, n] = uvhG
 
     comm.Barrier()
     t_total = (MPI.Wtime() - t_start)  # stop MPI timer
 
-    return t_total
+    return t_total, UVHG
 
 
-def flux_sw_ener_MPI_1D(uvh, params, rank, p, col, tags):
+def flux_sw_ener_MPI_1D(uvh, ranks, px, ghost_arr, tags, params):
     # All terms (h, U, V, B, etc...) are calculated in numpy.
+    rank, rankLU, rankRD = ranks
+    tagsLU, tagsRD = tags
+
+    # define what kind of MPI function we're using (i.e. sending rows or cols)
+    MPI_Func = params.MPI_Func
+
+    # define what kind of BC function we're using (i.e. rows or cols)
+    BC_Func  = params.BC_Func
 
     # Define parameters
-    dx, dy     = params[0], params[1]
-    f0, gp, H0 = params[2], params[3], params[4]
-    Nx, Ny     = dims
+    dx, dy     = params.dx, params.dy
+    f0, gp, H0 = params.consts
+    Nx, Ny     = params.nx, params.ny
 
     # Pull out primitive variables
     u, v, h = uvh[0, :, :], uvh[1, :, :],  H0 + uvh[2, :, :]
@@ -70,14 +106,10 @@ def flux_sw_ener_MPI_1D(uvh, params, rank, p, col, tags):
                        (I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h))
 
     # Enforce BCs using MPI
-    U = set_mpi_bc(U, rank, p, col, tags)
-    V = set_mpi_bc(V, rank, p, col, tags)
-    B = set_mpi_bc(B, rank, p, col, tags)
-    q = set_mpi_bc(q, rank, p, col, tags)
-    # U = even(U)
-    # V = odd(V)
-    # B = even(B)
-    # q = even(q)
+    U = BC_Func(MPI_Func(U, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
+    V = BC_Func(MPI_Func(V, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
+    B = BC_Func(MPI_Func(B, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
+    q = BC_Func(MPI_Func(q, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
 
     # Compute fluxes
     flux[0, :, :] =  0.25*(I(q) * (I_XP(V) + I(V)) + I_YN(q) * (I_XP_YN(V) + I_YN(V))) - \
@@ -87,8 +119,9 @@ def flux_sw_ener_MPI_1D(uvh, params, rank, p, col, tags):
     flux[2, :, :] = -(U[1:-1, 1:-1] - U[1:-1, 0:-2])/dx - (V[1:-1, 1:-1] - V[0:-2, 1:-1])/dy
 
     # compute energy and enstrophy
-    energy = 0.5*np.mean(gp*I(h)**2 + 0.5*I(h)*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2))
-    enstrophy = 0.125*np.mean((I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h)) * I(q)**2)
+    # energy = 0.5*np.mean(gp*I(h)**2 + 0.5*I(h)*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2))
+    # enstrophy = 0.125*np.mean((I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h)) * I(q)**2)
+    energy, enstrophy = 0, 0
 
     return flux, energy, enstrophy
 
@@ -141,40 +174,41 @@ def flux_sw_ener_f90_MPI(uvh, params, dims, rank, p, col, tags):
 """
 
 
-def ener_Euler_MPI(uvh, params, dims, rank, p, col, tags):
+def ener_Euler_MPI(uvh, ranks, px, ghost_arr, tags, params):
     # MPI'd pure Numpy
-    NLnm, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
+    NLnm, energy, enstr = flux_sw_ener_MPI_1D(uvh, ranks, px, ghost_arr, tags, params)
+    uvh[:, 1:-1, 1:-1]  = euler(uvh, params.dt, NLnm)
     return uvh, NLnm, energy, enstr
 
 
-def ener_AB2_MPI(uvh, NLnm, params, dims, rank, p, col, tags):
-    NLn, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
+def ener_AB2_MPI(uvh, NLnm, ranks, px, ghost_arr, tags, params):
+    NLn, energy, enstr = flux_sw_ener_MPI_1D(uvh, ranks, px, ghost_arr, tags, params)
+    uvh[:, 1:-1, 1:-1] = ab2(uvh, params.dt, NLn, NLnm)
     return uvh, NLn, energy, enstr
 
 
-def ener_AB3_MPI(uvh, NLn, NLnm, params, dims, rank, p, col, tags):
-    NL, energy, enstr  = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
+def ener_AB3_MPI(uvh, NLn, NLnm, ranks, px, ghost_arr, tags, params):
+    NL, energy, enstr  = flux_sw_ener_MPI_1D(uvh, ranks, px, ghost_arr, tags, params)
+    uvh[:, 1:-1, 1:-1] = ab3(uvh, params.dt, NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
 
-def set_uvh_bdr(uvh, rank, p, nx, col, tags):
+def set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func):
+    rank, rankLU, rankRD = ranks
+    tagsLU, tagsRD = tags
 
     u, v, h = uvh[0, :, :], uvh[1, :, :], uvh[2, :, :]
 
-    u = set_mpi_bc(u, rank, p, col, tags)
-    v = set_mpi_bc(v, rank, p, col, tags)
-    h = set_mpi_bc(h, rank, p, col, tags)
+    u = BC_Func(MPI_Func(u, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
+    v = BC_Func(MPI_Func(v, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
+    h = BC_Func(MPI_Func(h, rank, px, ghost_arr, tagsLU, tagsRD, rankLU, rankRD))
 
-    # uvh = np.dstack([u, v, h])
     uvh[0, :, :], uvh[1, :, :], uvh[2, :, :] = u, v, h
 
     return uvh
 
 
-def create_global_objects(rank, xG, yG, Nx, Ny, N, dx, hmax, Lx):
+def create_global_objects(rank, xG, yG, Nx, Ny, Nt, dx, hmax, Lx):
     if rank == 0:
         xx, yy = np.meshgrid(xG, yG)
         xuG = xx
@@ -183,61 +217,15 @@ def create_global_objects(rank, xG, yG, Nx, Ny, N, dx, hmax, Lx):
         yhG = yy
 
         uvhG = np.zeros([3, Ny, Nx])                # global initial solution
-        UVHG = np.empty((3, Ny, Nx, N), dtype='d')  # set of ALL global solutions
+        UVHG = np.empty((3*Ny*Nx, Nt), dtype='d')  # set of ALL global solutions
 
         uvhG[0, :, :] = 0*xuG
         uvhG[1, :, :] = 0*xvG
         uvhG[2, :, :] = hmax*np.exp(-(xhG**2 + yhG**2)/(Lx/6.0)**2)
-        UVHG[:, :, :, 0] = uvhG
-
         uvhG = uvhG.flatten()
-
+        UVHG[:, 0] = uvhG
     else:
         uvhG = None
         UVHG = None
 
     return (uvhG, UVHG)
-
-
-def gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n):
-    """
-    Gather each process' slice of uvh and store it in the global set of
-    solutions. Gathering is done on process 0.
-
-    Parameters
-    ----------
-    uvh : ndarray
-        process' slice of the solution (dimensions: (Ny, nx+2))
-    uvhG : ndarray
-        the global solution, excluding ghost points (dimensions: (Ny, p*nx))
-    UVHG : ndarray
-        the set of global solutions (dimensions: (Ny, p*nx, N)) where N is the
-        number of time steps defined elsewhere.
-    rank : int
-        rank of this process
-    p : int
-        number of processes
-    nx : int
-        the number of real (non-ghost) x points per process
-    Ny : int
-        the number of y points
-    n : int
-        time-step number
-
-    Returns
-    -------
-    ndarray or None
-        If this process' rank is 0, then the newest solution is added to UVHG
-        and UVHG is returned. Otherwise, None is returned.
-    """
-    comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
-    if rank == 0:
-        # evenly split ug into a list of p parts
-        temp = np.array_split(uvhG, p)
-        # reshape each part
-        temp = [a.reshape(3, Ny, nx) for a in temp]
-
-        UVHG[:, :, :, n] = np.dstack(temp)
-        return UVHG
-    else:
-        return None
