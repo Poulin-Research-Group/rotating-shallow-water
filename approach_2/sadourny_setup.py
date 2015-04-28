@@ -9,7 +9,7 @@ from fjp_helpers.bc import set_periodic_BC, set_periodic_BC_x, set_periodic_BC_y
 from fjp_helpers.misc import write_time
 from sadourny_helpers import set_periodic_BC_placeholder
 from setup_serial import solver_serial
-from setup_mpi import solver_mpi_1D
+from setup_mpi import solver_mpi_1D, solver_mpi_2D
 from mpi4py import MPI
 comm = MPI.COMM_WORLD
 
@@ -86,7 +86,7 @@ def solver(params, px, py, SAVE_TIME=False, ANIMATE=False, SAVE_SOLN=False):
         tags  = (tagsL, tagsR, tagsU, tagsD)
         params.mpi_func = send_periodic
         params.bc_func  = params.bc_xy
-        t_total = solver_mpi_2D(uvh, ranks, col, row, tags, params, ANIMATE, SAVE_SOLN)
+        t_total = solver_mpi_2D(uvh, ranks, col, row, tags, params, SAVE_TIME, ANIMATE, SAVE_SOLN)
 
     if rank == 0:
         # save the time to a file

@@ -52,7 +52,7 @@ if len(sys.argv) > 1:
 else:
     # number of processors to use in each direction
     px = 1
-    py = 4
+    py = 1
 
     # scaling parameters
     sc_x = 2
