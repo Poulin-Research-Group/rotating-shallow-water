@@ -1,8 +1,9 @@
 from __future__ import division
+import os
 import numpy as np
 from mpi4py import MPI
-from sadourny_setup import I, I_XP, I_XN, I_YP, I_YN, I_XP_YP, I_XP_YN, I_XN_YP, \
-                           euler, ab2, ab3
+from sadourny_helpers import I, I_XP, I_XN, I_YP, I_YN, I_XP_YP, I_XP_YN, I_XN_YP, \
+                             euler, ab2, ab3, animate_solution, create_global_objects
 from flux_ener_f2py77 import euler_f as ener_Euler_f77, \
                              ab2_f as ener_AB2_f77,      \
                              ab3_f as ener_AB3_f77,       \
@@ -11,45 +12,89 @@ from flux_ener_f2py90 import euler_f as ener_Euler_f90, \
                              ab2_f as ener_AB2_f90,      \
                              ab3_f as ener_AB3_f90,       \
                              flux_ener as flux_ener_F90
+from fjp_helpers.animator import mesh_animator
 comm = MPI.COMM_WORLD
-np.seterr(all='raise')
 
 
-def solver_MPI():
-    pass
+def solver_mpi_1D(u, ranks, ghost_arr, tags, params, save_time, animate, save_soln):
+    params.euler = ener_Euler_MPI
+    params.ab2   = ener_AB2_MPI
+    params.ab3   = ener_AB3_MPI
+
+    if animate:
+        t_total, UVHG = solver_1D_helper_g(u, ranks, ghost_arr, tags, params)
+        if ranks[0] == 0:
+            animate_solution(UVHG, 0, params)
+
+    if save_soln:
+        t_total = solver_1D_helper_w(u, ranks, ghost_arr, tags, params)
+
+    if save_time:
+        t_total = solver_1D_helper(u, ranks, ghost_arr, tags, params)
+
+    return t_total
 
 
-def solver_1D_helper(uvh, energy, enstr, ranks, ghost_arr, tags, params):
+def solver_1D_helper(uvh, ranks, ghost_arr, tags, params):
     Flux_Euler, Flux_AB2, Flux_AB3 = params.euler, params.ab2, params.ab3
     x0, xf, dx, Nx, nx = params.x_vars
     y0, yf, dy, Ny, ny = params.y_vars
     p, px, py = params.p_vars
-    MPI_Func  = params.MPI_Func
-    BC_Func   = params.BC_Func
+    MPI_Func  = params.mpi_func
+    BC_Func   = params.bc_func
     Nt = params.Nt
-
-    rank = ranks[0]
-
-    Lx = 200e3
-    hmax = 1.0
-
-    xG = np.linspace(x0+dx/2, xf-dx/2, Nx)    # global x points
-    y  = np.linspace(y0 + dy/2, yf - dy/2, Ny)
-
-    uvhG, UVHG = create_global_objects(rank, xG, y, Nx, Ny, Nt, dx, hmax, Lx)
 
     comm.Barrier()         # start MPI timer
     t_start = MPI.Wtime()
 
     # Euler step
-    uvh, NLnm, energy[0], enstr[0] = Flux_Euler(uvh, ranks, px, ghost_arr, tags, params)
+    uvh, NLnm, energy, enstr = Flux_Euler(uvh, ranks, px, ghost_arr, tags, params)
+    uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+
+    # AB2 step
+    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, ranks, px, ghost_arr, tags, params)
+    uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+
+    # loop through time
+    for n in range(3, Nt):
+        # AB3 step
+        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, ranks, px, ghost_arr, tags, params)
+
+        # Reset fluxes
+        NLnm, NLn = NLn, NL
+
+        uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
+
+    comm.Barrier()
+    t_total = (MPI.Wtime() - t_start)  # stop MPI timer
+
+    return t_total
+
+
+def solver_1D_helper_g(uvh, ranks, ghost_arr, tags, params):
+    Flux_Euler, Flux_AB2, Flux_AB3 = params.euler, params.ab2, params.ab3
+    x0, xf, dx, Nx, nx = params.x_vars
+    y0, yf, dy, Ny, ny = params.y_vars
+    p, px, py = params.p_vars
+    MPI_Func  = params.mpi_func
+    BC_Func   = params.bc_func
+    Nt = params.Nt
+
+    rank = ranks[0]
+    uvhG, UVHG = create_global_objects(rank, params)
+
+    comm.Barrier()         # start MPI timer
+    t_start = MPI.Wtime()
+
+    # Euler step
+    uvh, NLnm, energy, enstr = Flux_Euler(uvh, ranks, px, ghost_arr, tags, params)
     uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
     comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
     if rank == 0:
         UVHG[:, 1] = uvhG
 
     # AB2 step
-    uvh, NLn, energy[1], enstr[1]  = Flux_AB2(uvh, NLnm, ranks, px, ghost_arr, tags, params)
+    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, ranks, px, ghost_arr, tags, params)
     uvh = set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func)
     comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
     if rank == 0:
@@ -58,7 +103,7 @@ def solver_1D_helper(uvh, energy, enstr, ranks, ghost_arr, tags, params):
     # loop through time
     for n in range(3, Nt):
         # AB3 step
-        uvh, NL, energy[n-1], enstr[n-1] = Flux_AB3(uvh, NLn, NLnm, ranks, px, ghost_arr, tags, params)
+        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, ranks, px, ghost_arr, tags, params)
 
         # Reset fluxes
         NLnm, NLn = NLn, NL
@@ -80,10 +125,10 @@ def flux_sw_ener_MPI_1D(uvh, ranks, px, ghost_arr, tags, params):
     tagsLU, tagsRD = tags
 
     # define what kind of MPI function we're using (i.e. sending rows or cols)
-    MPI_Func = params.MPI_Func
+    MPI_Func = params.mpi_func
 
     # define what kind of BC function we're using (i.e. rows or cols)
-    BC_Func  = params.BC_Func
+    BC_Func  = params.bc_func
 
     # Define parameters
     dx, dy     = params.dx, params.dy
@@ -206,26 +251,3 @@ def set_uvh_bdr_1D(uvh, ranks, px, ghost_arr, tags, MPI_Func, BC_Func):
     uvh[0, :, :], uvh[1, :, :], uvh[2, :, :] = u, v, h
 
     return uvh
-
-
-def create_global_objects(rank, xG, yG, Nx, Ny, Nt, dx, hmax, Lx):
-    if rank == 0:
-        xx, yy = np.meshgrid(xG, yG)
-        xuG = xx
-        xvG = xx - dx/2
-        xhG = xx - dx/2
-        yhG = yy
-
-        uvhG = np.zeros([3, Ny, Nx])                # global initial solution
-        UVHG = np.empty((3*Ny*Nx, Nt), dtype='d')  # set of ALL global solutions
-
-        uvhG[0, :, :] = 0*xuG
-        uvhG[1, :, :] = 0*xvG
-        uvhG[2, :, :] = hmax*np.exp(-(xhG**2 + yhG**2)/(Lx/6.0)**2)
-        uvhG = uvhG.flatten()
-        UVHG[:, 0] = uvhG
-    else:
-        uvhG = None
-        UVHG = None
-
-    return (uvhG, UVHG)
