@@ -47,22 +47,27 @@ def solver_serial_helper(uvh, params):
     x0, xf, dx, Nx, nx = params.x_vars
     y0, yf, dy, Ny, ny = params.y_vars
     p, px, py = params.p_vars
+    method    = params.method
     Nt = params.Nt
+
+    params_obj = params
+    if method == 'f2py77' or method == 'f2py90':
+        params_obj = params.fortran_vars
 
     t_start = time.time()
 
     # Euler step
-    uvh, NLnm, energy, enstr = Flux_Euler(uvh, params)
+    uvh, NLnm, energy, enstr = Flux_Euler(uvh, params_obj)
     uvh = periodify(uvh)
 
     # AB2 step
-    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, params)
+    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, params_obj)
     uvh = periodify(uvh)
 
     # loop through time
     for n in range(3, Nt):
         # AB3 step
-        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, params)
+        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, params_obj)
         uvh = periodify(uvh)
 
         # Reset fluxes
@@ -78,26 +83,31 @@ def solver_serial_helper_g(uvh, params):
     x0, xf, dx, Nx, nx = params.x_vars
     y0, yf, dy, Ny, ny = params.y_vars
     p, px, py = params.p_vars
+    method    = params.method
     Nt = params.Nt
+
+    params_obj = params
+    if method == 'f2py77' or method == 'f2py90':
+        params_obj = params.fortran_vars
 
     UVHG = create_global_objects(0, params)[1]
 
     t_start = time.time()
 
     # Euler step
-    uvh, NLnm, energy, enstr = Flux_Euler(uvh, params)
+    uvh, NLnm, energy, enstr = Flux_Euler(uvh, params_obj)
     uvh = periodify(uvh)
     UVHG[:, 1] = uvh[:, 1:-1, 1:-1].flatten()
 
     # AB2 step
-    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, params)
+    uvh, NLn, energy, enstr = Flux_AB2(uvh, NLnm, params_obj)
     uvh = periodify(uvh)
     UVHG[:, 2] = uvh[:, 1:-1, 1:-1].flatten()
 
     # loop through time
     for n in range(3, Nt):
         # AB3 step
-        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, params)
+        uvh, NL, energy, enstr = Flux_AB3(uvh, NLn, NLnm, params_obj)
         uvh = periodify(uvh)
 
         # Reset fluxes
@@ -165,14 +175,14 @@ def ener_Euler(uvh, params):
 
 def ener_Euler_hybrid77(uvh, params):
     # calculating flux in Fortran 77, updating solution in Numpy
-    NLnm, energy, enstr = flux_ener_F77(uvh, params)
+    NLnm, energy, enstr = flux_ener_F77(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1]  = euler(uvh, params.dt, NLnm)
     return uvh, NLnm, energy, enstr
 
 
 def ener_Euler_hybrid90(uvh, params):
     # calculating flux in Fortran 90, updating solution in Numpy
-    NLnm, energy, enstr = flux_ener_F90(uvh, params)
+    NLnm, energy, enstr = flux_ener_F90(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1]  = euler(uvh, params.dt, NLnm)
     return uvh, NLnm, energy, enstr
 
@@ -184,13 +194,13 @@ def ener_AB2(uvh, NLnm, params):
 
 
 def ener_AB2_hybrid77(uvh, NLnm, params):
-    NLn, energy, enstr = flux_ener_F77(uvh, params)
+    NLn, energy, enstr = flux_ener_F77(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1] = ab2(uvh, params.dt, NLn, NLnm)
     return uvh, NLn, energy, enstr
 
 
 def ener_AB2_hybrid90(uvh, NLnm, params):
-    NLn, energy, enstr = flux_ener_F90(uvh, params)
+    NLn, energy, enstr = flux_ener_F90(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1] = ab2(uvh, params.dt, NLn, NLnm)
     return uvh, NLn, energy, enstr
 
@@ -202,13 +212,13 @@ def ener_AB3(uvh, NLn, NLnm, params):
 
 
 def ener_AB3_hybrid77(uvh, NLn, NLnm, params):
-    NL, energy, enstr  = flux_ener_F77(uvh, params)
+    NL, energy, enstr  = flux_ener_F77(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1] = ab3(uvh, params.dt, NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
 
 def ener_AB3_hybrid90(uvh, NLn, NLnm, params):
-    NL, energy, enstr  = flux_ener_F90(uvh, params)
+    NL, energy, enstr  = flux_ener_F90(uvh, params.fortran_vars)
     uvh[:, 1:-1, 1:-1] = ab3(uvh, params.dt, NL, NLn, NLnm)
     return uvh, NL, energy, enstr
 
@@ -220,7 +230,7 @@ def periodify(uvh):
     return uvh
 
 
-METHODS = ['numpy', 'f2py-f77', 'f2py-f90', 'hybrid77', 'hybrid90']
+METHODS = ['numpy', 'f2py77', 'f2py90', 'hybrid77', 'hybrid90']
 EULERS  = [ener_Euler, ener_Euler_f77, ener_Euler_f90, ener_Euler_hybrid77, ener_Euler_hybrid90]
 AB2S    = [ener_AB2, ener_AB2_f77, ener_AB2_f90, ener_AB2_hybrid77, ener_AB2_hybrid90]
 AB3S    = [ener_AB3, ener_AB3_f77, ener_AB3_f90, ener_AB3_hybrid77, ener_AB3_hybrid90]

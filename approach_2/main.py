@@ -58,8 +58,8 @@ else:
     sc_x = 2
     sc_y = 2
 
-    # method to use; options are 'numpy', 'f2py77', 'f2py90'
-    method = 'numpy'
+    # method to use; options are 'numpy', 'f2py77', 'f2py90', 'hybrid77', 'hybrid90'
+    method = 'f2py77'
 
 
 # lengths of axes
@@ -92,7 +92,7 @@ Nt  = int((tf - t0)/dt)
 # some constants
 f0 = 1e-4
 gp = 9.81
-H0 = 500
+H0 = 500.0
 
 # used for the global objects / ICs...
 hmax = 1.0
@@ -107,12 +107,12 @@ BC_xy = None
 
 # if SAVE_TIME is True, then the total time to solve the problem will be saved
 # to a file named filename_time
-SAVE_TIME = False
+SAVE_TIME = True
 filename_time = './tests/%s/%dscx_%dscy_%dpx_%dpy.txt' % (method, sc_x, sc_y, px, py)
 
 # if ANIMATE is True, then an animation of the solution will be saved to a file
 # named filename_anim
-ANIMATE = True
+ANIMATE = False
 filename_anim = './anims/anim_%dpx_%dpy.mp4' % (px, py)
 
 # if SAVE_SOLN is True, then the solution at every time step will be saved to a
@@ -127,6 +127,7 @@ params.set_y_vars([y0, yf, dy, Ny, ny])
 params.set_t_vars([t0, tf, dt, Nt])
 params.set_consts([f0, gp, H0])
 params.set_bc_funcs([BC_s, BC_x, BC_y, BC_xy])
+params.fortran_vars = [dx, dy, f0, gp, H0, dt]
 params.ics = f
 params.hmax, params.Lx = hmax, Lx
 params.bcs_type = BC_type

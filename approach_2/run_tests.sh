@@ -1,131 +1,132 @@
 # make test directory if it doesn't exist
 if [ ! -d "tests" ]; then
   echo Creating test directories...
-  mkdir -p tests/numpy
-  mkdir -p tests/f2py-f77/O0 tests/f2py-f77/O3 tests/f2py-f77/Ofast 
-  mkdir -p tests/f2py-f90/O0 tests/f2py-f90/O3 tests/f2py-f90/Ofast
-  mkdir -p tests/hybrid77/O0 tests/hybrid77/O3 tests/hybrid77/Ofast 
-  mkdir -p tests/hybrid90/O0 tests/hybrid90/O3 tests/hybrid90/Ofast 
-  mkdir -p tests/f77/O0 tests/f77/O3 tests/f77/Ofast
-  mkdir -p tests/f90/O0 tests/f90/O3 tests/f90/Ofast
+  mkdir -p tests/numpy tests/f2py77 tests/f2py90
 fi
 
-function test_python () {
-  sc="$1"
-  T="$2"
+# retrieve old stack limit, set new stack limit to unlimited
+old_stack_lim=$(ulimit -s)
+echo Current stack limit is $old_stack_lim. Setting it to unlimited.
+ulimit -s unlimited
 
+
+function test_python () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
+  p=$(expr $px \* $py)
+
+  echo px = $px, py = $py
+  echo ------------------
   echo numpy
   for ((i=0; i<$T; i++)) do
-    python sadourny.py numpy $sc
+    mpirun -np $p python main.py numpy $px $py $sc_x $sc_y
   done
   echo
 }
 
-function test_f2py () {
-  # Tests f2py-f77, f2py-f90, hybrid77, hybrid90
-  # with a specified sc and number of trials, T.
-  sc="$1"
-  T="$2"
-  opt="$3"
 
-  echo f2py-f77
+function test_f2py77 () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
+  p=$(expr $px \* $py)
+
+  echo f2py77
   for ((i=0; i<$T; i++)) do
-    python sadourny.py f2py-f77 $sc $opt
+    mpirun -np $p python main.py f2py77 $px $py $sc_x $sc_y
   done
   echo
+}
 
-  echo f2py-f90
+
+function test_f2py90 () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
+  p=$(expr $px \* $py)
+
+  echo f2py90
   for ((i=0; i<$T; i++)) do
-    python sadourny.py f2py-f90 $sc $opt
+    mpirun -np $p python main.py f2py90 $px $py $sc_x $sc_y
   done
   echo
+}
+
+
+function test_hybrid77 () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
+  p=$(expr $px \* $py)
 
   echo hybrid77
   for ((i=0; i<$T; i++)) do
-    python sadourny.py hybrid77 $sc $opt
+    mpirun -np $p python main.py hybrid77 $px $py $sc_x $sc_y
   done
   echo
+}
+
+
+function test_hybrid90 () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
+  p=$(expr $px \* $py)
 
   echo hybrid90
   for ((i=0; i<$T; i++)) do
-    python sadourny.py hybrid90 $sc $opt
+    mpirun -np $p python main.py hybrid90 $px $py $sc_x $sc_y
   done
   echo
 }
 
-function test_fortran () {
-  # Tests F77 with a specified sc and a number of
-  # trials, T.
-  sc="$1"
-  T="$2"
-  opt="$3"
+function test_all () {
+  px="$1"
+  py="$2"
+  sc_x="$3"
+  sc_y="$4"
+  T="$5"
 
-  file_f77=tests/f77/$opt/sc-$sc.txt
-  file_f90=tests/f90/$opt/sc-$sc.txt
-
-  echo f77
-  for ((i=0; i<$T; i++)) do
-    /usr/bin/time -f "%U" -a -o $file_f77 ./flux_ener_F77    # should it be "%e" instead??
-  done
-  echo
-
-  echo f90
-  for ((i=0; i<$T; i++)) do
-    /usr/bin/time -f "%U" -a -o $file_f90 ./flux_ener_F90
-  done
+  test_python $px $py $sc_x $sc_y $T
+  test_f2py77 $px $py $sc_x $sc_y $T
+  test_f2py90 $px $py $sc_x $sc_y $T
+  test_hybrid77 $px $py $sc_x $sc_y $T
+  test_hybrid90 $px $py $sc_x $sc_y $T
   echo
 }
 
-
-function opt_tests () {
-  sc="$1"
-  T="$2"
-  opt="$3"
-
-  echo "$opt optimization ------"
-
-  f2py --opt=-$opt -c -m flux_ener_f2py77 flux_ener_f2py.f 2>/dev/null 1>&2
-  f2py --opt=-$opt --f90flags=-ffixed-line-length-0 -c -m  flux_ener_f2py90 flux_ener_f2py.f90 2>/dev/null 1>&2
-  gfortran -$opt flux_ener.f -o flux_ener_F77
-  gfortran -$opt -ffixed-line-length-0 flux_ener.f90 -o flux_ener_F90
-
-  test_f2py $sc $T $opt
-  test_fortran $sc $T $opt
-}
-
-
-# THIS SHOULDN'T BE CHANGED
-old_sc=1
 
 # number of trials; change as need be.
-T=10
+T=1
 
-for sc in 1 2 4; do
+echo Compiling Fortran code with Ofast optimization...
+f2py --opt=-Ofast -c -m flux_ener_f2py77 flux_ener_f2py.f 2>/dev/null 1>&2
+f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m  flux_ener_f2py90 flux_ener_f2py.f90 2>/dev/null 1>&2
+echo Compiled.
+
+# this is assuming that sc_x = sc_y = sc, because of laziness from me.
+for sc in 1 2; do
   echo sc = $sc, $T trials
   echo
 
-  python modify_fortran_code.py $old_sc $sc    # modify the fortran script's sc value.
-
-  test_python $sc $T
-  opt_tests $sc $T O0
-  opt_tests $sc $T O3
-  opt_tests $sc $T Ofast
-  old_sc=$sc
+  test_all 1 1 $sc $sc $T   # serial
+  test_python 2 1 $sc $sc $T   # px = 2, py = 1
+  test_python 1 2 $sc $sc $T   # px = 1, py = 2
+  test_python 2 2 $sc $sc $T   # px = 2, py = 2
+  test_python 4 1 $sc $sc $T
+  test_python 1 4 $sc $sc $T
 done
 
-T=2
-for sc in 8 16; do
-  echo sc = $sc, $T trials
-  echo
-
-  python modify_fortran_code.py $old_sc $sc    # modify the fortran script's sc value.
-
-  test_python $sc $T
-  opt_tests $sc $T O0
-  opt_tests $sc $T O3
-  opt_tests $sc $T Ofast
-  old_sc=$sc
-done
-
-# change value of sc back to 1 in Fortran script
-python modify_fortran_code.py $sc 1
+ulimit -s $old_stack_lim
+echo Changed stack limit back to $old_stack_lim.

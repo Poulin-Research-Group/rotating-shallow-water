@@ -35,7 +35,6 @@ def solver(params, px, py, SAVE_TIME=False, ANIMATE=False, SAVE_SOLN=False):
     t0, tf, dt, Nt = params.t_vars
     C, Kx, Ky = params.consts
     bcs_type  = params.bcs_type
-    method    = params.method
 
     # split x and y values along each process
     x = create_x(px, rank, x0, xf, dx, nx, Nx)

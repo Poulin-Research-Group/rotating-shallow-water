@@ -9,6 +9,10 @@ comm = MPI.COMM_WORLD
 
 
 def solver_mpi_1D(u, ranks, ghost_arr, tags, params, save_time, animate, save_soln):
+    # if we're not using numpy, throw an error; it's not yet implemented!!
+    if params.method != 'numpy':
+        raise Exception('Parallel solvers have not yet been implemented for Fortran.')
+
     params.euler = ener_Euler_MPI
     params.ab2   = ener_AB2_MPI
     params.ab3   = ener_AB3_MPI
@@ -112,6 +116,10 @@ def solver_1D_helper_g(uvh, ranks, ghost_arr, tags, params):
 
 
 def solver_mpi_2D(u, ranks, col, row, tags, params, save_time, animate, save_soln):
+    # if we're not using numpy, throw an error; it's not yet implemented!!
+    if params.method != 'numpy':
+        raise Exception('Parallel solvers have not yet been implemented for Fortran.')
+
     params.euler = ener_Euler_MPI_2D
     params.ab2   = ener_AB2_MPI_2D
     params.ab3   = ener_AB3_MPI_2D

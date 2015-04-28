@@ -1,13 +1,13 @@
-      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, params, dims
+cf2py intent(in) :: uvh, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NLnm, ener, enst
 
@@ -19,16 +19,16 @@ cf2py intent(out) :: uvh, NLnm, ener, enst
 
 
 c     calculate the flux and update the solution using AB2 step      
-      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLnm, params, dims
+cf2py intent(in) :: uvh, NLnm, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NLn, ener, enst
 
@@ -39,16 +39,16 @@ cf2py intent(out) :: uvh, NLn, ener, enst
 
 
 c     calculate the flux and update the solution using AB3 step      
-      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NL(3,Ny,Nx), NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLn,NLnm, params, dims
+cf2py intent(in) :: uvh, NLn,NLnm, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NL, ener, enst
 
