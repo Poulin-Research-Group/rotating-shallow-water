@@ -1,13 +1,13 @@
-      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine euler_F(uvh, NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, params, dims
+cf2py intent(in) :: uvh, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NLnm, ener, enst
 
@@ -19,16 +19,16 @@ cf2py intent(out) :: uvh, NLnm, ener, enst
 
 
 c     calculate the flux and update the solution using AB2 step      
-      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine ab2_F(uvh, NLn,NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLnm, params, dims
+cf2py intent(in) :: uvh, NLnm, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NLn, ener, enst
 
@@ -39,16 +39,16 @@ cf2py intent(out) :: uvh, NLn, ener, enst
 
 
 c     calculate the flux and update the solution using AB3 step      
-      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params,dims)
+      subroutine ab3_F(uvh, NL,NLn,NLnm, ener, enst, Nx,Ny,params)
       implicit none
-      integer dims(2), Nx, Ny
+      integer Nx, Ny
       double precision uvh(3,0:Ny+1,0:Nx+1), ener, enst
       double precision NL(3,Ny,Nx), NLn(3,Ny,Nx), NLnm(3,Ny,Nx)
       double precision params(6), dt
 
       dt = params(6)
 
-cf2py intent(in) :: uvh, NLn,NLnm, params, dims
+cf2py intent(in) :: uvh, NLn,NLnm, params
 cf2py intent(hide) :: Nx, Ny
 cf2py intent(out) :: uvh, NL, ener, enst
 
@@ -146,41 +146,25 @@ cf2py intent(out) :: flux, ener, enst
       H0 = params(5)
 
 c     calc h
-      h = H0 + uvh(3, :, :)
+      call calc_h(h, H0, uvh, Nx, Ny)
 
 c     calc U
-      U(1:Ny,1:Nx) = 0.5*(h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)) * uvh(1,1:Ny,1:Nx)
+      call calc_U(U, h, uvh, Nx, Ny)
       call ghostify(U, Nx, Ny)
 
 c     calc V
-      V(1:Ny,1:Nx) = 0.5*(h(2:Ny+1, 1:Nx) + h(1:Ny,1:Nx)) * uvh(2,1:Ny,1:Nx)
+      call calc_V(V, h, uvh, Nx, Ny)
       call ghostify(V, Nx, Ny)
 
 c     calc B
-      B(1:Ny,1:Nx) = gp*h(1:Ny,1:Nx)
-     &  + 0.25*(uvh(1,1:Ny,1:Nx)**2 + uvh(1,1:Ny,0:Nx-1)**2
-     &  +       uvh(2,1:Ny,1:Nx)**2 + uvh(2,0:Ny-1,1:Nx)**2 )
+      call calc_B(B, h, gp, uvh, Nx, Ny)
       call ghostify(B, Nx, Ny)
       
 c     calc q
-      q(1:Ny,1:Nx) = ((uvh(2,1:Ny,2:Nx+1) - uvh(2,1:Ny,1:Nx)) / dx
-     &             -  (uvh(1,2:Ny+1,1:Nx) - uvh(1,1:Ny,1:Nx)) / dy  +  f0)
-     &             / (0.25*(h(2:Ny+1,2:Nx+1) + h(2:Ny+1,1:Nx) + h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)))
+      call calc_q(q, h, dx, dy, f0, uvh, Nx, Ny)
       call ghostify(q, Nx, Ny)
 
-c     calc flux for u_t
-      flux(1,1:Ny,1:Nx) = ( q(0:Ny-1,1:Nx) * (V(0:Ny-1,2:Nx+1) + V(0:Ny-1,1:Nx)) 
-     &                  +   q(1:Ny,1:Nx)   * (V(1:Ny,2:Nx+1)   + V(1:Ny,1:Nx))) *0.25
-     &                  - (B(1:Ny,2:Nx+1) - B(1:Ny,1:Nx)) / dx
-
-c     calc flux for v_t
-      flux(2,1:Ny,1:Nx) = -(q(1:Ny,0:Nx-1) * (U(2:Ny,0:Nx-1) + U(1:Ny,0:Nx-1))
-     &                  +   q(1:Ny,1:Nx)   * (U(2:Ny+1,1:Nx) + U(1:Ny,1:Nx))) *0.25
-     &                  - (B(2:Ny+1,1:Nx) - B(1:Ny,1:Nx)) / dy
-
-c     calc flux for h_t
-      flux(3,1:Ny,1:Nx) = (U(1:Ny,0:Nx-1) - U(1:Ny,1:Nx)) / dx
-     &                  + (V(0:Ny-1,1:Nx) - V(1:Ny,1:Nx)) / dy
+      call calc_flux(flux, U, V, B, q, dx, dy, Nx, Ny)
       
 
       ! calculating energy and enstrophy
@@ -194,7 +178,94 @@ c     calc flux for h_t
       end
 
 
+      subroutine calc_h(h, H0, uvh, Nx, Ny)
+      implicit none
+      double precision h(0:Ny+1,0:Nx+1), uvh(3, 0:Ny+1, 0:Nx+1), H0
+      integer Nx, Ny
+      intent(out) :: h
+
+      h = H0 + uvh(3, :, :)
+
+      end
+
+
+      subroutine calc_U(U, h, uvh, Nx, Ny)
+      implicit none
+      double precision U(0:Ny+1,0:Nx+1), h(0:Ny+1,0:Nx+1), uvh(3, 0:Ny+1, 0:Nx+1)
+      integer Nx, Ny
+      intent(out) :: U
+
+      U(1:Ny,1:Nx) = 0.5*(h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)) * uvh(1,1:Ny,1:Nx)
+
+      end
+
+
+      subroutine calc_V(V, h, uvh, Nx, Ny)
+      implicit none
+      double precision V(0:Ny+1,0:Nx+1), h(0:Ny+1,0:Nx+1), uvh(3, 0:Ny+1, 0:Nx+1)
+      integer Nx, Ny
+      intent(out) :: V
+
+      V(1:Ny,1:Nx) = 0.5*(h(2:Ny+1, 1:Nx) + h(1:Ny,1:Nx)) * uvh(2,1:Ny,1:Nx)
+
+      end
+
+
+      subroutine calc_B(B, h, gp, uvh, Nx, Ny)
+      implicit none
+      double precision B(0:Ny+1,0:Nx+1), h(0:Ny+1,0:Nx+1), uvh(3, 0:Ny+1, 0:Nx+1), gp
+      integer Nx, Ny
+      intent(out) :: B
+
+      B(1:Ny,1:Nx) = gp*h(1:Ny,1:Nx)
+     &             + 0.25*(uvh(1,1:Ny,1:Nx)**2 + uvh(1,1:Ny,0:Nx-1)**2
+     &             +       uvh(2,1:Ny,1:Nx)**2 + uvh(2,0:Ny-1,1:Nx)**2 )
+
+      end
+
+
+      subroutine calc_q(q, h, dx, dy, f0, uvh, Nx, Ny)
+      implicit none
+      double precision q(0:Ny+1,0:Nx+1), h(0:Ny+1,0:Nx+1), uvh(3, 0:Ny+1, 0:Nx+1)
+      double precision dx, dy, f0
+      integer Nx, Ny
+      intent(out) :: q
+
+      q(1:Ny,1:Nx) = ((uvh(2,1:Ny,2:Nx+1) - uvh(2,1:Ny,1:Nx)) / dx
+     &             -  (uvh(1,2:Ny+1,1:Nx) - uvh(1,1:Ny,1:Nx)) / dy  +  f0)
+     &             / (0.25*(h(2:Ny+1,2:Nx+1) + h(2:Ny+1,1:Nx) + h(1:Ny,2:Nx+1) + h(1:Ny,1:Nx)))
+
+      end
+
+
+      subroutine calc_flux(flux, U, V, B, q, dx, dy, Nx, Ny)
+      implicit none
+      integer Nx, Ny
+      double precision flux(3,Ny,Nx)
+      double precision dx, dy
+      double precision U(0:Ny+1,0:Nx+1), V(0:Ny+1,0:Nx+1)
+      double precision B(0:Ny+1,0:Nx+1), q(0:Ny+1,0:Nx+1)
+
+      intent(out) :: flux
+
+      flux(1,1:Ny,1:Nx) = ( q(0:Ny-1,1:Nx) * (V(0:Ny-1,2:Nx+1) + V(0:Ny-1,1:Nx)) 
+     &                  +   q(1:Ny,1:Nx)   * (V(1:Ny,2:Nx+1)   + V(1:Ny,1:Nx))) *0.25
+     &                  - (B(1:Ny,2:Nx+1) - B(1:Ny,1:Nx)) / dx
+
+c     calc flux for v_t
+      flux(2,1:Ny,1:Nx) = -(q(1:Ny,0:Nx-1) * (U(2:Ny,0:Nx-1) + U(1:Ny,0:Nx-1))
+     &                  +   q(1:Ny,1:Nx)   * (U(2:Ny+1,1:Nx) + U(1:Ny,1:Nx))) *0.25
+     &                  - (B(2:Ny+1,1:Nx) - B(1:Ny,1:Nx)) / dy
+
+c     calc flux for h_t
+      flux(3,1:Ny,1:Nx) = (U(1:Ny,0:Nx-1) - U(1:Ny,1:Nx)) / dx
+     &                  + (V(0:Ny-1,1:Nx) - V(1:Ny,1:Nx)) / dy
+
+      end
+
+
       subroutine ghostify(A, Nx, Ny)
+      implicit none
       double precision A(0:Ny+1, 0:Nx+1)
       integer Nx, Ny
 
@@ -207,7 +278,9 @@ c     calc flux for h_t
 
       end
 
+
       subroutine ghostify_uvh(uvh, Nx, Ny)
+      implicit none
       double precision uvh(3, 0:Ny+1, 0:Nx+1)
       integer Nx, Ny, k
 

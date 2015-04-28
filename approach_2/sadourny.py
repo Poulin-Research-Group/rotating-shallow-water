@@ -1,11 +1,16 @@
 #!/usr/bin/env python
-from sadourny_setup import flux_sw_ener, np, sys, time, ener_Euler, ener_AB2,     \
-                           ener_AB3, PLOTTO_649, plt, writer, ener_Euler_f77,      \
-                           ener_AB2_f77, ener_AB3_f77, periodic, odd, even,         \
+from __future__ import division
+from setup_serial import flux_sw_ener, np, ener_Euler, ener_AB2,     \
+                           ener_AB3, ener_Euler_f77,      \
+                           ener_AB2_f77, ener_AB3_f77,     \
                            ener_Euler_f90, ener_AB2_f90, ener_AB3_f90,               \
                            ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, \
                            ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90,  \
                            METHODS, EULERS, AB2S, AB3S
+from sadourny_setup import sys, time
+from fjp_helpers.misc import write_time
+from fjp_helpers.bc import set_periodic_BC as periodic
+from fjp_helpers.animator import mesh_animator
 
 
 def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
@@ -95,6 +100,14 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     #     PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-FORTRAN.mp4')
     # else:
     # PLOTTO_649(UVH, x, y, Nt, './anims/sw_ener-HYBRID.mp4')
+    H = np.empty((Ny*Nx, Nt+1), dtype='d')
+    for i in xrange(Nt+1):
+        H[:, i] = UVH[2, 1:-1, 1:-1, i].flatten()
+
+    x = np.append(-1, np.append(x, -1))
+    y = np.append(-1, np.append(y, -1))
+
+    mesh_animator(H, x, y, Nx, Ny, Nt+1, 1, 1, 1, './anims', 'PLEASE_WORK_HYBRID90.mp4')
 
     """
     print "Error in energy is ", np.amax(energy-energy[0])/energy[0]
@@ -112,7 +125,7 @@ def main(Flux_Euler, Flux_AB2, Flux_AB3, sc=1):
     """
     return t_final - t_start
 
-
+"""
 if len(sys.argv) > 1:
     argv   = sys.argv[1:]
     method = argv[0]
@@ -127,10 +140,11 @@ if len(sys.argv) > 1:
 
     print t
     writer(t, method, sc, opt)
-
+"""
 
 # print main(ener_Euler, ener_AB2, ener_AB3)
 # print main(ener_Euler_f77, ener_AB2_f77, ener_AB3_f77)
 # print main(ener_Euler_f90, ener_AB2_f90, ener_AB3_f90)
 # print main(ener_Euler_hybrid77, ener_AB2_hybrid77, ener_AB3_hybrid77, sc=1)
-# print main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90, sc=1)
+print main(ener_Euler_hybrid90, ener_AB2_hybrid90, ener_AB3_hybrid90, sc=1)
+# f2py --opt=-Ofast --f90flags=-ffixed-line-length-0 -c -m flux_ener_f2py90 flux_ener_f2py.f90

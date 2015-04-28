@@ -1,72 +1,104 @@
+from __future__ import division
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import sys
 import time
 import os
+from fjp_helpers.mpi import create_x, create_y, create_ranks, create_tags, \
+                            send_periodic, send_cols_periodic, send_rows_periodic
+from fjp_helpers.bc import set_periodic_BC, set_periodic_BC_x, set_periodic_BC_y
+from fjp_helpers.misc import write_time
+from sadourny_helpers import set_periodic_BC_placeholder
+from setup_serial import solver_serial
+from setup_mpi import solver_mpi_1D, solver_mpi_2D
 from mpi4py import MPI
-from flux_ener_f2py77 import euler_f as ener_Euler_f77, \
-                             ab2_f as ener_AB2_f77,      \
-                             ab3_f as ener_AB3_f77,       \
-                             flux_ener as flux_ener_F77
-from flux_ener_f2py90 import euler_f as ener_Euler_f90, \
-                             ab2_f as ener_AB2_f90,      \
-                             ab3_f as ener_AB3_f90,       \
-                             flux_ener as flux_ener_F90
 comm = MPI.COMM_WORLD
-# see bottom of file for other defined constants.
 
 
-def I(A):
-    # index A normally...
-    return A[1:-1, 1:-1]
+def solver(params, px, py, SAVE_TIME=False, ANIMATE=False, SAVE_SOLN=False):
+    p = px * py
+    if p != comm.Get_size():
+        if comm.Get_rank() == 0:
+            raise Exception("Incorrect number of cores used; MPI is being run with %d, "
+                            "but %d was inputted." % (comm.Get_size(), p))
 
+    # update Params object with p value and updater
+    params.set_p_vars([p, px, py])
 
-def I_XP(A):
-    # index A with x being pushed in positive direction (+1)
-    return A[1:-1, 2:]
+    # create ranks and tags in all directions
+    rank = comm.Get_rank()
+    rankL, rankR, rankU, rankD = create_ranks(rank, p, px, py)[1:]
+    tagsL, tagsR, tagsU, tagsD = create_tags(p)
 
+    # get variables and type of BCs
+    x0, xf, dx, Nx, nx = params.x_vars
+    y0, yf, dy, Ny, ny = params.y_vars
+    t0, tf, dt, Nt = params.t_vars
+    C, Kx, Ky = params.consts
+    bcs_type  = params.bcs_type
 
-def I_XN(A):
-    # index A with x being pushed in negative direction (-1)
-    return A[1:-1, 0:-2]
+    # split x and y values along each process
+    x = create_x(px, rank, x0, xf, dx, nx, Nx)
+    y = create_y(px, py, rank, y0, yf, dy, ny, Ny)
+    t = np.linspace(t0, tf, Nt)
 
+    # BUILD ZE GRID (of initial conditions)
+    f = params.ics
+    uvh = f(x, y, params)
 
-def I_YP(A):
-    return A[2:, 1:-1]
+    # create ghost column and row
+    col = np.empty(ny+2, dtype='d')
+    row = np.empty(nx+2, dtype='d')
 
+    # update Params object with BC functions
+    # if the BCs are periodic...
+    if bcs_type == 'P':
+        # if any of the BC functions passed were None, use default periodic BC functions
+        if any([bc is None for bc in params.bcs]):
+            params.set_bc_funcs([set_periodic_BC, set_periodic_BC_x, set_periodic_BC_y,
+                                 set_periodic_BC_placeholder])
 
-def I_YN(A):
-    return A[0:-2, 1:-1]
+    # if we have one process per direction, we're solving it in serial
+    if px == 1 and py == 1:
+        params.mpi_func = None
+        params.bc_func  = params.bc_s
+        t_total = solver_serial(uvh, params, SAVE_TIME, ANIMATE, SAVE_SOLN)
 
+    # if we have one process in y, we're parallelizing the solution in x
+    elif py == 1:
+        ranks = (rank,  rankL, rankR)
+        tags  = (tagsL, tagsR)
+        params.mpi_func = send_cols_periodic
+        params.bc_func  = params.bc_y
+        t_total = solver_mpi_1D(uvh, ranks, col, tags, params, SAVE_TIME, ANIMATE, SAVE_SOLN)
 
-def I_XP_YP(A):
-    # index A with x,y being pushed in pos. dir.
-    return A[2:, 2:]
+    # if we have one process in x, we're parallelizing the solution in y
+    elif px == 1:
+        ranks = (rank,  rankU, rankD)
+        tags  = (tagsU, tagsD)
+        params.mpi_func = send_rows_periodic
+        params.bc_func  = params.bc_x
+        t_total = solver_mpi_1D(uvh, ranks, row, tags, params, SAVE_TIME, ANIMATE, SAVE_SOLN)
 
+    # otherwise we're parallelizing the solution in both directions
+    else:
+        ranks = (rank,  rankL, rankR, rankU, rankD)
+        tags  = (tagsL, tagsR, tagsU, tagsD)
+        params.mpi_func = send_periodic
+        params.bc_func  = params.bc_xy
+        t_total = solver_mpi_2D(uvh, ranks, col, row, tags, params, SAVE_TIME, ANIMATE, SAVE_SOLN)
 
-def I_XP_YN(A):
-    # index A with x pushed in pos, y pushed in neg.
-    return A[0:-2, 2:]
+    if rank == 0:
+        # save the time to a file
+        if SAVE_TIME:
+            filename = params.filename_time.split(os.sep)
+            direc, filename = os.sep.join(filename[:-1]), filename[-1]
+            if not os.path.isdir(direc):
+                os.makedirs(direc)
+            write_time(t_total, direc, filename)
 
+        print t_total
 
-def I_XN_YP(A):
-    # index A with x pushed in neg, y pushed in pos
-    return A[2:, 0:-2]
-
-
-def I_XN_YN(A):
-    return A[0:-2, 0:-2]
-
-
-def periodic(f):
-    # Impose periodic BCs
-    f[0,  :] = f[-2, :]
-    f[-1, :] = f[1,  :]
-    f[:,  0] = f[:, -2]
-    f[:, -1] = f[:,  1]
-
-    return f
+    return t_total
 
 
 def odd(f):
@@ -87,354 +119,51 @@ def even(f):
     return f
 
 
-def euler(uvh, dt, NLnm):
-    return uvh[:, 1:-1, 1:-1] + dt*NLnm
-
-
-def ab2(uvh, dt, NLn, NLnm):
-    return uvh[:, 1:-1, 1:-1] + 0.5*dt*(3*NLn - NLnm)
-
-
-def ab3(uvh, dt, NL, NLn, NLnm):
-    return uvh[:, 1:-1, 1:-1] + dt/12*(23*NL - 16*NLn + 5*NLnm)
-
-
-def flux_sw_ener(uvh, params, dims):
-
-    # Define parameters
-    dx, dy     = params[0], params[1]
-    f0, gp, H0 = params[2], params[3], params[4]
-    Nx, Ny     = dims
-
-    # Pull out primitive variables
-    u, v, h = uvh[0, :, :], uvh[1, :, :],  H0 + uvh[2, :, :]
-
-    # Initialize fields
-    U, V = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
-    B, q = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
-    flux = np.zeros((3, Ny, Nx))
-
-    # Compute U, V, B, q
-    U[1:-1, 1:-1] = 0.5*(I(h) + I_XP(h)) * I(u)
-    V[1:-1, 1:-1] = 0.5*(I(h) + I_YP(h)) * I(v)
-    B[1:-1, 1:-1] = gp*I(h) + 0.25*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2)
-    q[1:-1, 1:-1] = 4*((I_XP(v) - I(v)) / dx - (I_YP(u) - I(u)) / dy + f0) /   \
-                       (I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h))
-
-    # Enforce BCs
-    U = periodic(U)
-    V = periodic(V)
-    B = periodic(B)
-    q = periodic(q)
-    # U = even(U)
-    # V = odd(V)
-    # B = even(B)
-    # q = even(q)
-
-    # Compute fluxes
-    flux[0, :, :] =  0.25*(I(q) * (I_XP(V) + I(V)) + I_YN(q) * (I_XP_YN(V) + I_YN(V))) - \
-                    (I_XP(B) - I(B))/dx
-    flux[1, :, :] = -0.25*(I(q) * (I_YP(U) + I(U)) + I_XN(q) * (I_XN_YP(U) + I_XN(U))) - \
-                    (I_YP(B) - I(B))/dy
-    flux[2, :, :] = -(U[1:-1, 1:-1] - U[1:-1, 0:-2])/dx - (V[1:-1, 1:-1] - V[0:-2, 1:-1])/dy
-
-    # compute energy and enstrophy
-    energy = 0.5*np.mean(gp*I(h)**2 + 0.5*I(h)*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2))
-    enstrophy = 0.125*np.mean((I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h)) * I(q)**2)
-
-    return flux, energy, enstrophy
-
-
-def flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags):
-    # MPI version...
-    # Define parameters
-    dx, dy     = params[0], params[1]
-    f0, gp, H0 = params[2], params[3], params[4]
-    Nx, Ny     = dims
-
-    # Pull out primitive variables
-    u, v, h = uvh[0, :, :], uvh[1, :, :],  H0 + uvh[2, :, :]
-
-    # Initialize fields
-    U, V = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
-    B, q = np.zeros((Ny+2, Nx+2)), np.zeros((Ny+2, Nx+2))
-    flux = np.zeros((3, Ny, Nx))
-
-    # Compute U, V, B, q
-    U[1:-1, 1:-1] = 0.5*(I(h) + I_XP(h)) * I(u)
-    V[1:-1, 1:-1] = 0.5*(I(h) + I_YP(h)) * I(v)
-    B[1:-1, 1:-1] = gp*I(h) + 0.25*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2)
-    q[1:-1, 1:-1] = 4*((I_XP(v) - I(v)) / dx - (I_YP(u) - I(u)) / dy + f0) /   \
-                       (I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h))
-
-    # Enforce BCs using MPI
-    U = set_mpi_bc(U, rank, p, col, tags)
-    V = set_mpi_bc(V, rank, p, col, tags)
-    B = set_mpi_bc(B, rank, p, col, tags)
-    q = set_mpi_bc(q, rank, p, col, tags)
-    # U = even(U)
-    # V = odd(V)
-    # B = even(B)
-    # q = even(q)
-
-    # Compute fluxes
-    flux[0, :, :] =  0.25*(I(q) * (I_XP(V) + I(V)) + I_YN(q) * (I_XP_YN(V) + I_YN(V))) - \
-                    (I_XP(B) - I(B))/dx
-    flux[1, :, :] = -0.25*(I(q) * (I_YP(U) + I(U)) + I_XN(q) * (I_XN_YP(U) + I_XN(U))) - \
-                    (I_YP(B) - I(B))/dy
-    flux[2, :, :] = -(U[1:-1, 1:-1] - U[1:-1, 0:-2])/dx - (V[1:-1, 1:-1] - V[0:-2, 1:-1])/dy
-
-    # compute energy and enstrophy
-    energy = 0.5*np.mean(gp*I(h)**2 + 0.5*I(h)*(I(u)**2 + I_XN(u)**2 + I(v)**2 + I_YN(v)**2))
-    enstrophy = 0.125*np.mean((I(h) + I_YP(h) + I_XP(h) + I_XP_YP(h)) * I(q)**2)
-
-    return flux, energy, enstrophy
-
-
-def ener_Euler(uvh, params, dims):
-    # pure Numpy
-    NLnm, energy, enstr = flux_sw_ener(uvh, params, dims)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
-    return uvh, NLnm, energy, enstr
-
-
-def ener_Euler_hybrid77(uvh, params, dims):
-    # calculating flux in Fortran, updating solution in Numpy
-    NLnm, energy, enstr = flux_ener_F77(uvh, params)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
-    return uvh, NLnm, energy, enstr
-
-
-def ener_Euler_hybrid90(uvh, params, dims):
-    # calculating flux in Fortran, updating solution in Numpy
-    NLnm, energy, enstr = flux_ener_F90(uvh, params)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
-    return uvh, NLnm, energy, enstr
-
-
-def ener_Euler_MPI(uvh, params, dims, rank, p, col, tags):
-    # MPI'd pure Numpy
-    NLnm, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1]  = euler(uvh, params[5], NLnm)
-    return uvh, NLnm, energy, enstr
-
-
-def ener_AB2(uvh, NLnm, params, dims):
-    NLn, energy, enstr = flux_sw_ener(uvh, params, dims)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
-    return uvh, NLn, energy, enstr
-
-
-def ener_AB2_hybrid77(uvh, NLnm, params, dims):
-    NLn, energy, enstr = flux_ener_F77(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
-    return uvh, NLn, energy, enstr
-
-
-def ener_AB2_hybrid90(uvh, NLnm, params, dims):
-    NLn, energy, enstr = flux_ener_F90(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
-    return uvh, NLn, energy, enstr
-
-
-def ener_AB2_MPI(uvh, NLnm, params, dims, rank, p, col, tags):
-    NLn, energy, enstr = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab2(uvh, params[5], NLn, NLnm)
-    return uvh, NLn, energy, enstr
-
-
-def ener_AB3(uvh, NLn, NLnm, params, dims):
-    NL, energy, enstr  = flux_sw_ener(uvh, params, dims)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
-    return uvh, NL, energy, enstr
-
-
-def ener_AB3_hybrid77(uvh, NLn, NLnm, params, dims):
-    NL, energy, enstr  = flux_ener_F77(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
-    return uvh, NL, energy, enstr
-
-
-def ener_AB3_hybrid90(uvh, NLn, NLnm, params, dims):
-    NL, energy, enstr  = flux_ener_F90(uvh, params)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
-    return uvh, NL, energy, enstr
-
-
-def ener_AB3_MPI(uvh, NLn, NLnm, params, dims, rank, p, col, tags):
-    NL, energy, enstr  = flux_sw_ener_MPI(uvh, params, dims, rank, p, col, tags)
-    uvh[:, 1:-1, 1:-1] = ab3(uvh, params[5], NL, NLn, NLnm)
-    return uvh, NL, energy, enstr
-
-
-# def set_uvh_bdr(uvh, rank, p, nx, uCol, vCol, hCol, uTags, vTags, hTags):
-def set_uvh_bdr(uvh, rank, p, nx, col, tags):
-
-    u, v, h = uvh[0, :, :], uvh[1, :, :], uvh[2, :, :]
-
-    u = set_mpi_bc(u, rank, p, col, tags)
-    v = set_mpi_bc(v, rank, p, col, tags)
-    h = set_mpi_bc(h, rank, p, col, tags)
-
-    # uvh = np.dstack([u, v, h])
-    uvh[0, :, :], uvh[1, :, :], uvh[2, :, :] = u, v, h
-
-    return uvh
-
-
-def gather_uvh(uvh, uvhG, UVHG, rank, p, nx, Ny, n):
-    """
-    Gather each process' slice of uvh and store it in the global set of
-    solutions. Gathering is done on process 0.
-
-    Parameters
-    ----------
-    uvh : ndarray
-        process' slice of the solution (dimensions: (Ny, nx+2))
-    uvhG : ndarray
-        the global solution, excluding ghost points (dimensions: (Ny, p*nx))
-    UVHG : ndarray
-        the set of global solutions (dimensions: (Ny, p*nx, N)) where N is the
-        number of time steps defined elsewhere.
-    rank : int
-        rank of this process
-    p : int
-        number of processes
-    nx : int
-        the number of real (non-ghost) x points per process
-    Ny : int
-        the number of y points
-    n : int
-        time-step number
-
-    Returns
-    -------
-    ndarray or None
-        If this process' rank is 0, then the newest solution is added to UVHG
-        and UVHG is returned. Otherwise, None is returned.
-    """
-    comm.Gather(uvh[:, 1:-1, 1:-1].flatten(), uvhG, root=0)
-    if rank == 0:
-        # evenly split ug into a list of p parts
-        temp = np.array_split(uvhG, p)
-        # reshape each part
-        temp = [a.reshape(3, Ny, nx) for a in temp]
-
-        UVHG[:, :, :, n] = np.dstack(temp)
-        return UVHG
-    else:
-        return None
-
-
-def create_global_objects(rank, xG, yG, Nx, Ny, N, dx, hmax, Lx):
-    if rank == 0:
-        xx, yy = np.meshgrid(xG, yG)
-        xuG = xx
-        xvG = xx - dx/2
-        xhG = xx - dx/2
-        yhG = yy
-
-        uvhG = np.zeros([3, Ny, Nx])                # global initial solution
-        UVHG = np.empty((3, Ny, Nx, N), dtype='d')  # set of ALL global solutions
-
-        uvhG[0, :, :] = 0*xuG
-        uvhG[1, :, :] = 0*xvG
-        uvhG[2, :, :] = hmax*np.exp(-(xhG**2 + yhG**2)/(Lx/6.0)**2)
-        UVHG[:, :, :, 0] = uvhG
-
-        uvhG = uvhG.flatten()
-
-    else:
-        uvhG = None
-        UVHG = None
-
-    return (uvhG, UVHG)
-
-
-def PLOTTO_649(UVHG, xG, yG, Nt, output_name, MPI=False):
-    xhG, yhG = np.meshgrid(xG,  yG)
-
-    fig = plt.figure()
-    ims = []
-    if not MPI:
-        for n in xrange(Nt):
-            ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2, 1:-1, 1:-1, n],
-                        norm=plt.Normalize(0, 1)), ))
-    else:
-        for n in xrange(Nt):
-            ims.append((plt.pcolormesh(xhG/1e3, yhG/1e3, UVHG[2, :, :, n],
-                        norm=plt.Normalize(0, 1)), ))
-
-    im_ani = animation.ArtistAnimation(fig, ims, interval=50, repeat_delay=3000, blit=False)
-    im_ani.save(output_name)
-
-
-def writer(t_total, method, sc, opt=None):
-    if opt:
-        filename = './tests/%s/%s/sc-%d.txt' % (method, opt, sc)
-    else:
-        filename = './tests/%s/sc-%d.txt' % (method, sc)
-
-    # check to see if file exists; if it doesn't, create it.
-    if not os.path.exists(filename):
-        open(filename, 'a').close()
-
-    # write time to the file
-    F = open(filename, 'a')
-    F.write('%f\n' % t_total)
-    F.close()
-
-
-def set_mpi_bc(mat, rank, p, col, tags):
-    """
-    Set the periodic boundary conditions via MPI for mat. mat is assumed to be
-    (Ny+2)-by-(nx+2), i.e. padded with ghost cells.
-    """
-
-    # Impose periodic BCs along y
-    mat[0,  :] = mat[-2, :]
-    mat[-1, :] = mat[ 1, :]
-
-    # send mat[j, :, 1] (second column) ... j = 0,1,2
-    if 0 < rank:
-        # ...from rank to rank-1 (left)
-        comm.Send(mat[:, 1].flatten(), dest=rank-1, tag=tags[rank])
-    else:
-        # ...from 0 to p-1
-        comm.Send(mat[:, 1].flatten(), dest=p-1, tag=tags[rank])
-
-    # receive mat[:, 1], place in mat[:, nx+1] (last column) ...
-    if rank < p-1:
-        # ... from rank+1
-        comm.Recv(col, source=rank+1, tag=tags[rank+1])
-        mat[:, -1] = col
-    else:
-        # ... from rank 0
-        comm.Recv(col, source=0, tag=tags[0])
-        mat[:, -1] = col
-
-    # send mat[:, nx] (second-last column)...
-    if rank < p-1:
-        # ...from rank to rank+1
-        comm.Send(mat[:, -2].flatten(), dest=rank+1, tag=tags[rank])
-    else:
-        # ...from p-1 to 0
-        comm.Send(mat[:, -2].flatten(), dest=0, tag=tags[rank])
-
-    # receive mat[:, nx], place in mat[:, 0] (first column) ...
-    if 0 < rank:
-        # ...from rank-1
-        comm.Recv(col, source=rank-1, tag=tags[rank-1])
-        mat[:, 0] = col
-    else:
-        # ...from p-1
-        comm.Recv(col, source=p-1, tag=tags[p-1])
-        mat[:, 0] = col
-
-    return mat
-
-
-METHODS = ['numpy', 'f2py-f77', 'f2py-f90', 'hybrid77', 'hybrid90']
-EULERS  = [ener_Euler, ener_Euler_f77, ener_Euler_f90, ener_Euler_hybrid77, ener_Euler_hybrid90]
-AB2S    = [ener_AB2, ener_AB2_f77, ener_AB2_f90, ener_AB2_hybrid77, ener_AB2_hybrid90]
-AB3S    = [ener_AB3, ener_AB3_f77, ener_AB3_f90, ener_AB3_hybrid77, ener_AB3_hybrid90]
+class Params(object):
+    """Placeholder for several constants and what not."""
+    def __init__(self):
+        super(Params, self).__init__()
+        self.x_vars, self.y_vars, self.t_vars, self.p_vars, self.consts = 5*[None]
+        self.funcs = {}
+
+    def __str__(self):
+        return "x-vars: %s\ny-vars: %s\nt-vars: %s\np-vars: %s\nconsts: %s\n""" % (
+            str(self.x_vars), str(self.y_vars), str(self.t_vars), str(self.p_vars),
+            str(self.consts)
+        )
+
+    def set_x_vars(self, x_vars):
+        self.x_vars = x_vars
+        self.x0, self.xf, self.dx, self.Nx, self.nx = x_vars
+
+    def set_y_vars(self, y_vars):
+        self.y_vars = y_vars
+        self.y0, self.yf, self.dy, self.Ny, self.ny = y_vars
+
+    def set_t_vars(self, t_vars):
+        self.t_vars = t_vars
+        self.t0, self.tf, self.dt, self.Nt = t_vars
+
+    def set_p_vars(self, p_vars):
+        self.p_vars = p_vars
+        self.p, self.px, self.py = p_vars
+
+    def set_consts(self, consts):
+        self.consts = consts
+        self.f0, self.gp, self.H0 = consts
+
+    def set_funcs(self, funcs):
+        # funcs is a dictionary
+        self.funcs = funcs
+        self.ics = funcs['ic']
+        self.bc_s, self.bc_x  = funcs['bc_s'], funcs['bc_x']
+        self.bc_y, self.bc_xy = funcs['bc_y'], funcs['bc_xy']
+        self.updater  = funcs['updater']
+        self.mpi_func = funcs['mpi']
+
+    def set_bc_funcs(self, bc_funcs):
+        # bc_funcs is an array, [serial, x, y, xy]
+        self.bc_s, self.bc_x, self.bc_y, self.bc_xy = bc_funcs
+        self.funcs['bc_s'], self.funcs['bc_x']  = self.bc_s, self.bc_x
+        self.funcs['bc_y'], self.funcs['bc_xy'] = self.bc_y, self.bc_xy
+        self.bcs = bc_funcs
